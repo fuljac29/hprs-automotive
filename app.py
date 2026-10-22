@@ -56,7 +56,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.1</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.2</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -633,6 +633,374 @@ if plasma_mode == "Pulsed plasma":
         unsafe_allow_html=True,
     )
 
+
+# ============================================================
+# WHAT MUST CHANGE TO REACH THE SELECTED TARGET?
+# ============================================================
+
+st.subheader("What must change to reach the selected target?")
+
+st.caption(
+    "Design diagnosis: each lever is varied one at a time while the other current "
+    "assumptions are held fixed. These are model requirements, not validated hardware predictions."
+)
+
+def net_fraction_for_specific_plasma_energy(
+    sei_kwh_per_kg_h2,
+    engine_efficiency,
+    recovery_fraction,
+):
+    """
+    Fraction of gross H2-engine shaft power left after the modeled plasma
+    electrical burden, assuming plasma specific electricity scales with H2 flow.
+    """
+    if (
+        engine_efficiency <= 0
+        or h2_recovery <= 0
+        or generator_eff <= 0
+    ):
+        return -math.inf
+
+    plasma_burden_fraction = (
+        sei_kwh_per_kg_h2
+        * (1.0 - recovery_fraction)
+        / (
+            generator_eff
+            * engine_efficiency
+            * H2_LHV_KWH_KG
+            * h2_recovery
+        )
+    )
+    return 1.0 - plasma_burden_fraction
+
+
+# 1) Gross engine power required if current plasma specific electricity is kept.
+current_specific_net_fraction = net_fraction_for_specific_plasma_energy(
+    effective_plasma_sei,
+    engine_eff,
+    recovery_offset,
+)
+
+required_gross_engine_current_sei_kw = (
+    target_net_kw / current_specific_net_fraction
+    if target_net_kw > 0 and current_specific_net_fraction > 0
+    else (0.0 if target_net_kw == 0 else math.inf)
+)
+
+# 2) Gross engine power required in the ideal thermodynamic-floor case.
+floor_specific_net_fraction = net_fraction_for_specific_plasma_energy(
+    THERMO_MIN_KWH_PER_KG_H2,
+    engine_eff,
+    recovery_offset,
+)
+
+required_gross_engine_floor_kw = (
+    target_net_kw / floor_specific_net_fraction
+    if target_net_kw > 0 and floor_specific_net_fraction > 0
+    else (0.0 if target_net_kw == 0 else math.inf)
+)
+
+# 3) H2 engine efficiency required at current gross engine power and current plasma SEI.
+if target_net_kw < gross_engine_kw:
+    required_engine_eff = (
+        gross_engine_kw
+        * effective_plasma_sei
+        * (1.0 - recovery_offset)
+        / (
+            (gross_engine_kw - target_net_kw)
+            * H2_LHV_KWH_KG
+            * h2_recovery
+            * generator_eff
+        )
+    )
+elif (
+    target_net_kw == gross_engine_kw
+    and effective_plasma_sei == 0
+):
+    required_engine_eff = engine_eff
+else:
+    required_engine_eff = math.inf
+
+# Same calculation if the plasma could reach the ideal thermodynamic floor.
+if target_net_kw < gross_engine_kw:
+    required_engine_eff_at_floor = (
+        gross_engine_kw
+        * THERMO_MIN_KWH_PER_KG_H2
+        * (1.0 - recovery_offset)
+        / (
+            (gross_engine_kw - target_net_kw)
+            * H2_LHV_KWH_KG
+            * h2_recovery
+            * generator_eff
+        )
+    )
+else:
+    required_engine_eff_at_floor = math.inf
+
+# 4) Recovered-energy offset required at current gross engine power and current plasma SEI.
+current_plasma_power_at_specific_sei_kw = (
+    gross_engine_kw
+    * effective_plasma_sei
+    / (
+        engine_eff
+        * H2_LHV_KWH_KG
+        * h2_recovery
+    )
+    if engine_eff > 0 and h2_recovery > 0
+    else math.inf
+)
+
+if target_net_kw <= gross_engine_kw and current_plasma_power_at_specific_sei_kw > 0:
+    required_recovery_offset = (
+        1.0
+        - (
+            (gross_engine_kw - target_net_kw)
+            * generator_eff
+            / current_plasma_power_at_specific_sei_kw
+        )
+    )
+    required_recovery_offset = max(0.0, required_recovery_offset)
+else:
+    required_recovery_offset = math.inf
+
+# Same recovered-energy calculation at the thermodynamic-floor plasma input.
+floor_plasma_power_at_current_gross_kw = (
+    gross_engine_kw
+    * THERMO_MIN_KWH_PER_KG_H2
+    / (
+        engine_eff
+        * H2_LHV_KWH_KG
+        * h2_recovery
+    )
+    if engine_eff > 0 and h2_recovery > 0
+    else math.inf
+)
+
+if target_net_kw <= gross_engine_kw and floor_plasma_power_at_current_gross_kw > 0:
+    required_recovery_offset_at_floor = (
+        1.0
+        - (
+            (gross_engine_kw - target_net_kw)
+            * generator_eff
+            / floor_plasma_power_at_current_gross_kw
+        )
+    )
+    required_recovery_offset_at_floor = max(
+        0.0,
+        required_recovery_offset_at_floor,
+    )
+else:
+    required_recovery_offset_at_floor = math.inf
+
+
+def fmt_requirement(value, unit="", digits=1):
+    if not math.isfinite(value):
+        return "Not finite"
+    return f"{value:.{digits}f}{unit}"
+
+
+d1, d2, d3, d4 = st.columns(4)
+
+d1.metric(
+    "Gross H₂ engine needed @ current SEI",
+    (
+        f"{required_gross_engine_current_sei_kw:.1f} kW"
+        if math.isfinite(required_gross_engine_current_sei_kw)
+        else "Not reachable"
+    ),
+)
+
+d2.metric(
+    "Gross H₂ engine needed @ thermo floor",
+    (
+        f"{required_gross_engine_floor_kw:.1f} kW"
+        if math.isfinite(required_gross_engine_floor_kw)
+        else "Not reachable"
+    ),
+)
+
+d3.metric(
+    "H₂ engine efficiency needed @ current SEI",
+    (
+        f"{100*required_engine_eff:.1f}%"
+        if math.isfinite(required_engine_eff)
+        else "Not reachable"
+    ),
+)
+
+d4.metric(
+    "Recovered-energy offset needed @ current SEI",
+    (
+        f"{100*required_recovery_offset:.1f}%"
+        if math.isfinite(required_recovery_offset)
+        else "Not reachable"
+    ),
+)
+
+diagnosis_rows = []
+
+# Plasma-SEI lever
+if custom_allowed_sei < THERMO_MIN_KWH_PER_KG_H2:
+    sei_status = "Not physically reachable by SEI reduction alone"
+else:
+    sei_status = "Not excluded by thermodynamic floor"
+
+diagnosis_rows.append(
+    {
+        "Design lever": "Plasma specific electricity",
+        "Current": f"{effective_plasma_sei:.2f} kWh/kg H₂",
+        "Required for target": f"≤ {custom_allowed_sei:.2f} kWh/kg H₂",
+        "Model diagnosis": sei_status,
+    }
+)
+
+# Gross-engine lever, using current SEI
+if not math.isfinite(required_gross_engine_current_sei_kw):
+    gross_status = "Not reachable at current specific plasma burden"
+elif required_gross_engine_current_sei_kw <= 250:
+    gross_status = "Within current simulator power range; throughput must scale too"
+else:
+    gross_status = "Above current simulator power range"
+
+diagnosis_rows.append(
+    {
+        "Design lever": "Gross H₂-engine shaft power",
+        "Current": f"{gross_engine_kw:.0f} kW",
+        "Required for target": (
+            f"≥ {required_gross_engine_current_sei_kw:.1f} kW"
+            if math.isfinite(required_gross_engine_current_sei_kw)
+            else "Not finite"
+        ),
+        "Model diagnosis": gross_status,
+    }
+)
+
+# Engine-efficiency lever
+if not math.isfinite(required_engine_eff):
+    engine_eff_status = "Not reachable at current gross power"
+elif required_engine_eff > 1.0:
+    engine_eff_status = "Physically impossible (>100%)"
+elif required_engine_eff > 0.50:
+    engine_eff_status = "Above current simulator efficiency range"
+else:
+    engine_eff_status = "Within current simulator efficiency range"
+
+diagnosis_rows.append(
+    {
+        "Design lever": "H₂ engine brake efficiency",
+        "Current": f"{100*engine_eff:.1f}%",
+        "Required for target": (
+            f"≥ {100*required_engine_eff:.1f}%"
+            if math.isfinite(required_engine_eff)
+            else "Not finite"
+        ),
+        "Model diagnosis": engine_eff_status,
+    }
+)
+
+# Recovery-offset lever
+if not math.isfinite(required_recovery_offset):
+    recovery_status = "Not reachable"
+elif required_recovery_offset > 1.0:
+    recovery_status = "Physically impossible (>100%)"
+elif required_recovery_offset > 0.80:
+    recovery_status = "Above current simulator recovery range"
+else:
+    recovery_status = "Within model range; requires experimental validation"
+
+diagnosis_rows.append(
+    {
+        "Design lever": "Recovered-energy offset",
+        "Current": f"{100*recovery_offset:.1f}%",
+        "Required for target": (
+            f"≥ {100*required_recovery_offset:.1f}%"
+            if math.isfinite(required_recovery_offset)
+            else "Not finite"
+        ),
+        "Model diagnosis": recovery_status,
+    }
+)
+
+st.dataframe(
+    diagnosis_rows,
+    use_container_width=True,
+    hide_index=True,
+)
+
+# A concise engineering interpretation.
+if custom_allowed_sei < THERMO_MIN_KWH_PER_KG_H2:
+    st.warning(
+        f"Plasma efficiency alone cannot deliver {target_net_kw:.0f} kW net at "
+        f"{gross_engine_kw:.0f} kW gross: the required "
+        f"{custom_allowed_sei:.2f} kWh/kg H₂ is below the ideal floor of "
+        f"{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂."
+    )
+else:
+    st.success(
+        f"At {gross_engine_kw:.0f} kW gross, the {target_net_kw:.0f} kW target "
+        f"is not excluded by the thermodynamic floor if plasma electricity can "
+        f"be reduced to ≤ {custom_allowed_sei:.2f} kWh/kg H₂."
+    )
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Alternative paths for the selected {target_net_kw:.0f} kW target:</b><br><br>
+
+    • Keeping the current plasma specific electricity of
+    <b>{effective_plasma_sei:.2f} kWh/kg H₂</b>, the simplified model requires
+    approximately <b>{fmt_requirement(required_gross_engine_current_sei_kw, " kW", 1)}</b>
+    gross H₂-engine shaft power.<br>
+
+    • If the plasma could approach the ideal thermodynamic floor, the required
+    gross H₂-engine power falls to approximately
+    <b>{fmt_requirement(required_gross_engine_floor_kw, " kW", 1)}</b>.<br>
+
+    • Holding gross engine power and plasma SEI fixed, the required H₂-engine
+    brake efficiency is
+    <b>{fmt_requirement(100*required_engine_eff, "%", 1)}</b>.<br>
+
+    • Holding gross engine power, engine efficiency and plasma SEI fixed, the
+    required recovered-energy offset is
+    <b>{fmt_requirement(100*required_recovery_offset, "%", 1)}</b>.<br><br>
+
+    Each line varies one lever independently. Combining moderate improvements
+    across several levers can be more realistic than forcing any single
+    parameter to an extreme value.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.expander("Ideal-floor cross-check for the selected target"):
+    st.markdown(
+        f"""
+        If the plasma specific electricity were exactly the ideal
+        **{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂** floor:
+
+        - gross H₂-engine power needed: **{
+            required_gross_engine_floor_kw:.1f
+            if math.isfinite(required_gross_engine_floor_kw)
+            else float("nan")
+        } kW**
+        - H₂-engine efficiency needed at the current gross power:
+          **{
+            100*required_engine_eff_at_floor:.1f
+            if math.isfinite(required_engine_eff_at_floor)
+            else float("nan")
+        }%**
+        - recovered-energy offset needed at the current gross power:
+          **{
+            100*required_recovery_offset_at_floor:.1f
+            if math.isfinite(required_recovery_offset_at_floor)
+            else float("nan")
+        }%**
+
+        These are idealized model boundaries, not predictions of achievable
+        reactor, engine or heat-recovery hardware.
+        """
+    )
+
 st.subheader("Conventional Engine Benchmark")
 st.caption("Same fuel reference. Same engine-scale comparison. Different carbon pathway.")
 
@@ -737,6 +1105,15 @@ with st.expander("Model basis and references"):
           This gives a standard-state decomposition floor of ≈ **{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂**.
         - U.S. Department of Energy: hydrogen LHV = **33.3 kWh/kg H₂**.
 
+        **Design-target diagnosis**
+
+        The V2.2 design diagnosis varies one lever at a time and solves the
+        simplified balance backwards for the selected net-power target.
+        It can estimate the required gross engine power, H₂-engine efficiency,
+        recovered-energy offset, or plasma specific electricity. A value being
+        mathematically reachable in the model is not evidence that the required
+        hardware performance is experimentally achievable.
+
         **Pulsed-plasma interpretation**  
 `P_avg = energy_per_pulse × pulse_frequency × active_cells`  
 Pulse width is used to estimate instantaneous peak power and electrical duty cycle. These values are research controls, not validated automotive reactor specifications.
@@ -746,4 +1123,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.1 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.2 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
