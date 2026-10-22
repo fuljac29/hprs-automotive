@@ -56,7 +56,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.1</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -303,6 +303,37 @@ fuel_ratio_same_net = (
     else math.inf
 )
 
+# Performance-target calculator: work backwards from desired net shaft power.
+def max_plasma_gross_power_for_target(target_net_kw):
+    available_shaft_kw = gross_engine_kw - target_net_kw
+    if available_shaft_kw <= 0:
+        return 0.0
+    if (1.0 - recovery_offset) <= 0:
+        return math.inf
+    return available_shaft_kw * generator_eff / (1.0 - recovery_offset)
+
+def max_plasma_sei_for_target(target_net_kw):
+    allowed_plasma_kw = max_plasma_gross_power_for_target(target_net_kw)
+    if h2_gross_kg_h <= 0:
+        return math.inf
+    return allowed_plasma_kw / h2_gross_kg_h
+
+# Engineering checkpoints requested for comparison.
+target_levels_kw = [x for x in (60.0, 80.0, 100.0) if x <= gross_engine_kw]
+if float(gross_engine_kw) not in target_levels_kw:
+    target_levels_kw.append(float(gross_engine_kw))
+target_levels_kw = sorted(set(target_levels_kw))
+
+# Best-case net shaft if plasma operates exactly at the ideal thermodynamic floor.
+plasma_floor_kw = h2_gross_kg_h * THERMO_MIN_KWH_PER_KG_H2
+plasma_floor_external_kw = plasma_floor_kw * (1.0 - recovery_offset)
+plasma_floor_shaft_burden_kw = (
+    plasma_floor_external_kw / generator_eff
+    if generator_eff > 0
+    else math.inf
+)
+max_net_at_thermo_floor_kw = gross_engine_kw - plasma_floor_shaft_burden_kw
+
 st.subheader("Scenario result")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -465,6 +496,143 @@ with right:
         unsafe_allow_html=True,
     )
 
+st.subheader("Required Plasma Efficiency to Reach Target Power")
+st.caption(
+    "Works backwards from desired net shaft power to the maximum plasma burden "
+    "the system can tolerate under the selected recovery and generator assumptions."
+)
+
+# Show up to three requested engineering target cards.
+target_cols = st.columns(min(3, max(1, len(target_levels_kw))))
+for idx, target_kw in enumerate(target_levels_kw[:3]):
+    allowed_kw = max_plasma_gross_power_for_target(target_kw)
+    allowed_sei = max_plasma_sei_for_target(target_kw)
+    delta_txt = (
+        "above thermodynamic floor"
+        if allowed_sei >= THERMO_MIN_KWH_PER_KG_H2
+        else "below thermodynamic floor"
+    )
+    target_cols[idx].metric(
+        f"Target {target_kw:.0f} kW net",
+        f"{allowed_sei:.2f} kWh/kg H₂",
+        delta_txt,
+    )
+
+target_table = []
+for target_kw in target_levels_kw:
+    allowed_kw = max_plasma_gross_power_for_target(target_kw)
+    allowed_sei = max_plasma_sei_for_target(target_kw)
+    reduction_needed = (
+        max(0.0, 1.0 - allowed_sei / effective_plasma_sei) * 100.0
+        if effective_plasma_sei > 0 and math.isfinite(allowed_sei)
+        else 0.0
+    )
+    target_table.append({
+        "Target net shaft": f"{target_kw:.0f} kW",
+        "Max gross plasma power": f"{allowed_kw:.2f} kW",
+        "Max plasma SEI": f"{allowed_sei:.2f} kWh/kg H₂",
+        "SEI reduction vs current": f"{reduction_needed:.1f}%",
+        "Thermodynamic check": (
+            "Potentially compatible"
+            if allowed_sei >= THERMO_MIN_KWH_PER_KG_H2
+            else "Below thermodynamic floor"
+        ),
+    })
+
+st.dataframe(target_table, use_container_width=True, hide_index=True)
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Best-case thermodynamic ceiling for the current operating point:</b><br>
+    At the ideal standard-state decomposition floor of
+    <b>{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂</b>,
+    the plasma would consume about <b>{plasma_floor_kw:.2f} kW</b> gross electricity.
+    With the selected recovered-energy offset and generator efficiency,
+    a {gross_engine_kw:.0f} kW gross H₂ engine would then leave about
+    <b>{max_net_at_thermo_floor_kw:.1f} kW net shaft power</b>.
+    This is an ideal thermodynamic ceiling, not a realistic reactor prediction.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+default_target = int(min(80.0, float(gross_engine_kw)))
+target_net_kw = st.slider(
+    "Custom target net shaft power (kW)",
+    min_value=0,
+    max_value=int(gross_engine_kw),
+    value=default_target,
+    step=5,
+)
+
+custom_allowed_plasma_kw = max_plasma_gross_power_for_target(target_net_kw)
+custom_allowed_sei = max_plasma_sei_for_target(target_net_kw)
+custom_reduction_pct = (
+    max(0.0, 1.0 - custom_allowed_sei / effective_plasma_sei) * 100.0
+    if effective_plasma_sei > 0 and math.isfinite(custom_allowed_sei)
+    else 0.0
+)
+
+q1, q2, q3, q4 = st.columns(4)
+q1.metric("Allowed gross plasma power", f"{custom_allowed_plasma_kw:.2f} kW")
+q2.metric("Required max plasma SEI", f"{custom_allowed_sei:.2f} kWh/kg H₂")
+q3.metric("SEI reduction vs current", f"{custom_reduction_pct:.1f}%")
+q4.metric("Ideal thermodynamic floor", f"{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂")
+
+if custom_allowed_sei >= THERMO_MIN_KWH_PER_KG_H2:
+    target_margin = custom_allowed_sei / THERMO_MIN_KWH_PER_KG_H2
+    st.success(
+        f"The {target_net_kw:.0f} kW net target is not excluded by the model's "
+        f"standard-state thermodynamic floor. Plasma electricity would need to be "
+        f"no more than {custom_allowed_sei:.2f} kWh/kg H₂ gross, giving a "
+        f"{target_margin:.2f}× margin over the ideal floor."
+    )
+else:
+    st.error(
+        f"The {target_net_kw:.0f} kW net target would require only "
+        f"{custom_allowed_sei:.2f} kWh/kg H₂, below the ideal standard-state "
+        f"floor of {THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂. With the current "
+        f"gross engine power and selected recovery assumptions, this target is "
+        f"not reachable in the simplified model."
+    )
+
+if plasma_mode == "Pulsed plasma":
+    per_cell_avg_kw = (
+        pulse_energy_mj * 1e-3
+        * pulse_frequency_khz * 1e3
+        / 1000.0
+    )
+    max_cells_for_target = (
+        math.floor(custom_allowed_plasma_kw / per_cell_avg_kw)
+        if per_cell_avg_kw > 0 and math.isfinite(custom_allowed_plasma_kw)
+        else 0
+    )
+    required_pulse_energy_mj_at_current_cells = (
+        custom_allowed_plasma_kw * 1000.0
+        / (pulse_frequency_khz * 1e3 * active_cells)
+        * 1000.0
+        if pulse_frequency_khz > 0 and active_cells > 0
+        else math.inf
+    )
+    st.markdown(
+        f"""
+        <div class="horg-note">
+        <b>Pulsed-plasma translation for the selected target:</b><br>
+        At the current pulse energy and frequency, one active cell averages
+        <b>{per_cell_avg_kw:.4f} kW</b> electrical power.
+        To remain below the {target_net_kw:.0f} kW net-power ceiling, the purely
+        electrical model allows approximately <b>{max_cells_for_target} active cells</b>.<br><br>
+        Alternatively, keeping {active_cells} cells and {pulse_frequency_khz:.1f} kHz,
+        the average pulse energy would need to be no more than about
+        <b>{required_pulse_energy_mj_at_current_cells:.2f} mJ per pulse per cell</b>.<br><br>
+        These are electrical ceilings only. They do not establish reactor throughput,
+        conversion, hydrogen yield or carbon-removal performance.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 st.subheader("Conventional Engine Benchmark")
 st.caption("Same fuel reference. Same engine-scale comparison. Different carbon pathway.")
 
@@ -578,4 +746,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.1 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
