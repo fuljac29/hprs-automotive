@@ -72,7 +72,7 @@ O2_MOLAR = 31.998
 WATER_KG_PER_KG_H2_STOICH = WATER_MOLAR / H2_MOLAR
 O2_KG_PER_KG_H2_STOICH = O2_MOLAR / (2.0 * H2_MOLAR)
 
-# V2.8 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
+# V2.9 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
 # NIST-JANAF water(l): Delta_f H deg = -285.830 kJ/mol,
 # Delta_f G deg = -237.141 kJ/mol. For H2O(l) -> H2(g) + 0.5 O2(g),
 # the water-splitting reaction therefore requires +285.830 kJ/mol enthalpy
@@ -134,7 +134,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.8</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.9</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -204,10 +204,10 @@ st.markdown(
 )
 
 st.info(
-    "Four pathways are compared in V2.8: conventional gasoline, dry HPRS "
+    "Four pathways are compared in V2.9: conventional gasoline, dry HPRS "
     "carbon-retention, gasoline + water/steam, and HPRS-W plasma water splitting. "
-    "HPRS-W is an electricity/heat-to-hydrogen pathway and is therefore evaluated "
-    "against electrolysis benchmarks as well as against shaft-power output."
+    "HPRS-W is evaluated with advanced thermodynamic/plasma diagnostics plus a coupled "
+    "feasible-region search that automatically rejects points failing the standard-state energy/exergy guards."
 )
 
 with st.sidebar:
@@ -255,7 +255,7 @@ with st.sidebar:
         step=5,
         help=(
             "All four pathways are rescaled to deliver this same net mechanical "
-            "shaft power. This is the primary apples-to-apples comparison in V2.8."
+            "shaft power. This is the primary apples-to-apples comparison in V2.9."
         ),
     )
 
@@ -556,7 +556,7 @@ with st.sidebar:
     ) / 100.0
 
     st.divider()
-    st.subheader("V2.8 advanced theory — HPRS-W")
+    st.subheader("V2.9 advanced theory — HPRS-W")
     st.caption(
         "Diagnostic-only physics inputs. These do not represent measured HydrogenOrg reactor data."
     )
@@ -721,6 +721,61 @@ with st.sidebar:
             max_value=150.0,
             value=30.0,
             step=5.0,
+        )
+
+    st.divider()
+    st.subheader("V2.9 feasible-region search")
+    st.caption(
+        "Coupled search over plasma electricity, total H2 recovery, H2-engine efficiency "
+        "and HPRS-W heat recovery. Standard-state thermodynamic guards are applied automatically."
+    )
+
+    with st.expander("Multi-parameter competitive-region solver", expanded=False):
+        v29_plasma_search_range = st.slider(
+            "Plasma electricity search range (kWh_e/kg gross H2)",
+            min_value=20.0,
+            max_value=70.0,
+            value=(32.0, 50.0),
+            step=1.0,
+            help=(
+                "The solver may scan below the standard-state Gibbs reference, but such points "
+                "are rejected unless the modeled external heat supplies enough exergy and total energy."
+            ),
+        )
+        v29_recovery_search_range_pct = st.slider(
+            "Total H2 recovery-chain search range (%)",
+            min_value=70,
+            max_value=100,
+            value=(84, 98),
+            step=1,
+            help=(
+                "Lumped delivered/gross H2 recovery used only by the V2.9 search. It represents the "
+                "combined effect of species steering, quench survival and purification recovery."
+            ),
+        )
+        v29_engine_search_range_pct = st.slider(
+            "H2-engine brake-efficiency search range (%)",
+            min_value=25,
+            max_value=60,
+            value=(38, 50),
+            step=1,
+        )
+        v29_heat_recovery_search_range_pct = st.slider(
+            "HPRS-W heat-recovery search range (%)",
+            min_value=0,
+            max_value=99,
+            value=(50, 95),
+            step=1,
+        )
+        v29_grid_resolution = st.radio(
+            "Feasible-region grid resolution",
+            ["Coarse", "Standard", "Fine"],
+            index=1,
+            horizontal=True,
+            help=(
+                "Resolution changes the number of deterministic grid points, not the physics model. "
+                "Standard is designed for interactive use."
+            ),
         )
 
     st.divider()
@@ -930,7 +985,7 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-# V2.8 keeps steam-route thermal and electrical process energy separate.
+# V2.9 keeps steam-route thermal and electrical process energy separate.
 steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
     * steam_thermal_energy
@@ -1152,7 +1207,7 @@ hprsw_closed_loop_margin_kwh_per_kg = (
 )
 
 # ============================================================
-# V2.8 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
+# V2.9 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
 # ============================================================
 
 comparison_net_kw = float(normalized_target_kw)
@@ -1384,7 +1439,7 @@ norm_hprsw_total_eff = (
 )
 
 # ============================================================
-# V2.8 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
+# V2.9 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
 # ============================================================
 
 # 1) Standard-state water-splitting thermodynamics and simple exergy view.
@@ -1602,6 +1657,234 @@ if hprsw_plasma_electricity > 0:
     ) / hprsw_plasma_electricity
 else:
     hprsw_break_even_electricity_price_chf_kwh = math.inf
+
+# ============================================================
+# V2.9 MULTI-PARAMETER FEASIBLE-REGION SOLVER
+# ============================================================
+# This deterministic grid scan varies four coupled HPRS-W levers together:
+# plasma electricity, total delivered/gross H2 recovery, H2-engine brake
+# efficiency, and heat recovery. It is not a probabilistic Monte Carlo model.
+#
+# Two standard-state screening guards are enforced:
+#   1) total external energy >= Delta H (thermoneutral reference), and
+#   2) external exergy >= Delta G (reversible-work reference).
+# External heat exergy is approximated with the same Carnot factor used in the
+# V2.9 advanced exergy diagnostic. These guards do not replace temperature-
+# dependent equilibrium or non-equilibrium plasma chemistry.
+
+def _v29_linspace(lo, hi, n):
+    lo = float(lo)
+    hi = float(hi)
+    n = max(int(n), 2)
+    if hi <= lo:
+        return [lo]
+    step = (hi - lo) / (n - 1)
+    return [lo + i * step for i in range(n)]
+
+_v29_resolution_counts = {
+    "Coarse": (7, 6, 7, 6),
+    "Standard": (11, 8, 11, 8),
+    "Fine": (17, 12, 17, 12),
+}
+_v29_np, _v29_nr, _v29_ne, _v29_nh = _v29_resolution_counts[v29_grid_resolution]
+
+_v29_plasma_values = _v29_linspace(
+    v29_plasma_search_range[0], v29_plasma_search_range[1], _v29_np
+)
+_v29_recovery_values = [
+    x / 100.0 for x in _v29_linspace(
+        v29_recovery_search_range_pct[0],
+        v29_recovery_search_range_pct[1],
+        _v29_nr,
+    )
+]
+_v29_engine_values = [
+    x / 100.0 for x in _v29_linspace(
+        v29_engine_search_range_pct[0],
+        v29_engine_search_range_pct[1],
+        _v29_ne,
+    )
+]
+_v29_heat_recovery_values = [
+    x / 100.0 for x in _v29_linspace(
+        v29_heat_recovery_search_range_pct[0],
+        v29_heat_recovery_search_range_pct[1],
+        _v29_nh,
+    )
+]
+
+v29_total_grid_points = (
+    len(_v29_plasma_values)
+    * len(_v29_recovery_values)
+    * len(_v29_engine_values)
+    * len(_v29_heat_recovery_values)
+)
+
+# Non-thermal operating-cost terms per kg gross H2 remain fixed during the scan.
+v29_nonthermal_cost_per_gross_h2_chf = (
+    hprsw_water_makeup_per_gross_h2_l / 1000.0 * water_price_chf_m3
+    + hprsw_argon_makeup_per_gross_h2_kg * argon_price_chf_kg
+    - hprsw_o2_recovered_per_gross_h2_kg * oxygen_value_chf_kg
+)
+
+v29_thermo_points = []
+v29_energy_competitive_points = []
+v29_dual_competitive_points = []
+v29_cost_competitive_points = []
+
+_v29_p_span = max(v29_plasma_search_range[1] - v29_plasma_search_range[0], 1e-9)
+_v29_r_span = max(
+    (v29_recovery_search_range_pct[1] - v29_recovery_search_range_pct[0]) / 100.0,
+    1e-9,
+)
+_v29_e_span = max(
+    (v29_engine_search_range_pct[1] - v29_engine_search_range_pct[0]) / 100.0,
+    1e-9,
+)
+_v29_h_span = max(
+    (v29_heat_recovery_search_range_pct[1] - v29_heat_recovery_search_range_pct[0]) / 100.0,
+    1e-9,
+)
+
+for _p in _v29_plasma_values:
+    for _r in _v29_recovery_values:
+        for _eta in _v29_engine_values:
+            for _hr in _v29_heat_recovery_values:
+                _q_ext = hprsw_steam_preheat * (1.0 - _hr)
+                _total_energy = _p + _q_ext
+                _external_exergy = _p + _q_ext * hprsw_heat_exergy_factor
+                _shaft_per_gross_h2 = H2_LHV_KWH_KG * _eta * _r
+
+                _energy_guard_ok = (
+                    _total_energy + 1e-9 >= WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2
+                )
+                _exergy_guard_ok = (
+                    _external_exergy + 1e-9 >= WATER_SPLIT_REV_KWH_PER_KG_H2
+                )
+                _thermo_ok = _energy_guard_ok and _exergy_guard_ok
+
+                _system_eff = (
+                    _shaft_per_gross_h2 / _total_energy
+                    if _total_energy > 0 else 0.0
+                )
+
+                _gross_cost = max(
+                    0.0,
+                    _p * electricity_price_chf_kwh
+                    + _q_ext * thermal_energy_price_chf_kwh
+                    + v29_nonthermal_cost_per_gross_h2_chf,
+                )
+                _cost_per_net_kwh = (
+                    _gross_cost / _shaft_per_gross_h2
+                    if _shaft_per_gross_h2 > 0 else math.inf
+                )
+
+                _energy_competitive = (
+                    _thermo_ok and _system_eff + 1e-12 >= conventional_eff
+                )
+                _cost_competitive = (
+                    _thermo_ok
+                    and _cost_per_net_kwh <= hprsw_conv_cost_benchmark_per_net_kwh + 1e-12
+                )
+
+                # Balanced-stretch score: minimize the largest normalized movement
+                # from the currently selected operating point. It intentionally does
+                # not claim any one parameter is easier to improve experimentally.
+                _stretch_components = [
+                    abs(_p - hprsw_plasma_electricity) / _v29_p_span,
+                    abs(_r - hprsw_recovery_chain) / _v29_r_span,
+                    abs(_eta - engine_eff) / _v29_e_span,
+                    abs(_hr - hprsw_heat_recovery) / _v29_h_span,
+                ]
+                _balanced_stretch = max(_stretch_components)
+                _sum_stretch = sum(_stretch_components)
+
+                _point = {
+                    "plasma": _p,
+                    "recovery": _r,
+                    "engine_eff": _eta,
+                    "heat_recovery": _hr,
+                    "external_heat": _q_ext,
+                    "total_energy": _total_energy,
+                    "external_exergy": _external_exergy,
+                    "shaft_per_gross_h2": _shaft_per_gross_h2,
+                    "system_eff": _system_eff,
+                    "cost_per_net_kwh": _cost_per_net_kwh,
+                    "energy_guard_ok": _energy_guard_ok,
+                    "exergy_guard_ok": _exergy_guard_ok,
+                    "balanced_stretch": _balanced_stretch,
+                    "sum_stretch": _sum_stretch,
+                }
+
+                if _thermo_ok:
+                    v29_thermo_points.append(_point)
+                if _energy_competitive:
+                    v29_energy_competitive_points.append(_point)
+                if _cost_competitive:
+                    v29_cost_competitive_points.append(_point)
+                if _energy_competitive and _cost_competitive:
+                    v29_dual_competitive_points.append(_point)
+
+v29_thermo_count = len(v29_thermo_points)
+v29_energy_competitive_count = len(v29_energy_competitive_points)
+v29_cost_competitive_count = len(v29_cost_competitive_points)
+v29_dual_competitive_count = len(v29_dual_competitive_points)
+
+v29_thermo_share = (
+    v29_thermo_count / v29_total_grid_points if v29_total_grid_points else 0.0
+)
+v29_energy_share_of_thermo = (
+    v29_energy_competitive_count / v29_thermo_count if v29_thermo_count else 0.0
+)
+v29_dual_share_of_thermo = (
+    v29_dual_competitive_count / v29_thermo_count if v29_thermo_count else 0.0
+)
+
+v29_balanced_energy_candidate = (
+    min(
+        v29_energy_competitive_points,
+        key=lambda x: (x["balanced_stretch"], x["sum_stretch"], x["total_energy"]),
+    )
+    if v29_energy_competitive_points else None
+)
+v29_lowest_energy_candidate = (
+    min(
+        v29_energy_competitive_points,
+        key=lambda x: (x["total_energy"], -x["system_eff"]),
+    )
+    if v29_energy_competitive_points else None
+)
+v29_lowest_cost_dual_candidate = (
+    min(
+        v29_dual_competitive_points,
+        key=lambda x: (x["cost_per_net_kwh"], x["total_energy"]),
+    )
+    if v29_dual_competitive_points else None
+)
+
+# Current selected HPRS-W point under the same V2.9 guards.
+v29_current_total_energy = hprsw_total_external_energy_per_gross_h2
+v29_current_external_exergy = hprsw_external_exergy_per_gross_h2
+v29_current_shaft_per_gross_h2 = H2_LHV_KWH_KG * engine_eff * hprsw_recovery_chain
+v29_current_system_eff = (
+    v29_current_shaft_per_gross_h2 / v29_current_total_energy
+    if v29_current_total_energy > 0 else 0.0
+)
+v29_current_thermo_ok = (
+    v29_current_total_energy + 1e-9 >= WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2
+    and v29_current_external_exergy + 1e-9 >= WATER_SPLIT_REV_KWH_PER_KG_H2
+)
+v29_current_energy_competitive = (
+    v29_current_thermo_ok and v29_current_system_eff + 1e-12 >= conventional_eff
+)
+v29_current_cost_per_net_kwh = (
+    hprsw_other_cost_per_gross_h2_chf
+    + hprsw_plasma_electricity * electricity_price_chf_kwh
+) / v29_current_shaft_per_gross_h2 if v29_current_shaft_per_gross_h2 > 0 else math.inf
+v29_current_cost_competitive = (
+    v29_current_thermo_ok
+    and v29_current_cost_per_net_kwh <= hprsw_conv_cost_benchmark_per_net_kwh + 1e-12
+)
 
 # Per-kWh-net indicators.
 def per_net(value):
@@ -2547,7 +2830,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V2.8 Advanced Theoretical Analysis — HPRS-W")
+st.subheader("V2.9 Advanced Theoretical Analysis — HPRS-W")
 st.caption(
     "These diagnostics are first-order theoretical calculations. They do not solve plasma kinetics, "
     "non-equilibrium chemistry, sheath physics, detailed CFD or electrode erosion."
@@ -2748,7 +3031,136 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V2.8 Scientific Comparison — Same Net Shaft Power")
+st.markdown("#### 6 · V2.9 multi-parameter feasible region")
+
+st.caption(
+    "The grid below changes plasma electricity, total H2 recovery, H2-engine efficiency "
+    "and HPRS-W heat recovery simultaneously. Grid shares are deterministic search fractions, "
+    "not probabilities of experimental success."
+)
+
+fg1, fg2, fg3, fg4 = st.columns(4)
+fg1.metric("Grid points scanned", f"{v29_total_grid_points:,}")
+fg2.metric(
+    "Thermodynamically feasible",
+    f"{v29_thermo_count:,} ({100*v29_thermo_share:.1f}%)",
+)
+fg3.metric(
+    "Energy-competitive",
+    f"{v29_energy_competitive_count:,}",
+    help=(
+        f"Thermodynamically feasible grid points with total-energy-to-shaft efficiency "
+        f"at least the selected conventional benchmark ({100*conventional_eff:.1f}%)."
+    ),
+)
+fg4.metric(
+    "Energy + cost competitive",
+    f"{v29_dual_competitive_count:,}",
+    help="Points that satisfy both the energy benchmark and the current modeled operating-cost benchmark.",
+)
+
+current_status_parts = [
+    "thermodynamically feasible" if v29_current_thermo_ok else "thermodynamically rejected",
+    "energy-competitive" if v29_current_energy_competitive else "below energy benchmark",
+    "cost-competitive" if v29_current_cost_competitive else "above cost benchmark",
+]
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Current selected HPRS-W point:</b> {', '.join(current_status_parts)}.<br>
+    Current screened total-energy-to-shaft efficiency = <b>{100*v29_current_system_eff:.1f}%</b>;
+    conventional benchmark = <b>{100*conventional_eff:.1f}%</b>.<br><br>
+    <b>Thermodynamic guards used by V2.9:</b>
+    total external energy must be at least <b>{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H2</b>
+    and modeled external exergy must be at least <b>{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H2</b>.
+    The heat-exergy contribution uses the selected heat-source temperature through a simple Carnot factor.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+if v29_energy_competitive_points:
+    _ep = v29_energy_competitive_points
+    _p_min, _p_max = min(x["plasma"] for x in _ep), max(x["plasma"] for x in _ep)
+    _r_min, _r_max = min(x["recovery"] for x in _ep), max(x["recovery"] for x in _ep)
+    _e_min, _e_max = min(x["engine_eff"] for x in _ep), max(x["engine_eff"] for x in _ep)
+    _h_min, _h_max = min(x["heat_recovery"] for x in _ep), max(x["heat_recovery"] for x in _ep)
+
+    st.markdown("##### Coupled energy-competitive envelope")
+    ce1, ce2, ce3, ce4 = st.columns(4)
+    ce1.metric("Plasma electricity in competitive set", f"{_p_min:.1f}–{_p_max:.1f} kWh/kg H2")
+    ce2.metric("Total H2 recovery in competitive set", f"{100*_r_min:.1f}–{100*_r_max:.1f}%")
+    ce3.metric("H2-engine BTE in competitive set", f"{100*_e_min:.1f}–{100*_e_max:.1f}%")
+    ce4.metric("Heat recovery in competitive set", f"{100*_h_min:.1f}–{100*_h_max:.1f}%")
+
+    st.info(
+        "This is a coupled envelope: the displayed minima and maxima do not form one single operating point. "
+        "Each value occurs somewhere in a competitive combination with compensating values of the other variables."
+    )
+
+    def _v29_candidate_row(label, p):
+        return {
+            "Candidate": label,
+            "Plasma kWh/kg H2": f"{p['plasma']:.1f}",
+            "H2 recovery": f"{100*p['recovery']:.1f}%",
+            "Engine BTE": f"{100*p['engine_eff']:.1f}%",
+            "Heat recovery": f"{100*p['heat_recovery']:.1f}%",
+            "External heat kWh/kg": f"{p['external_heat']:.2f}",
+            "Total energy kWh/kg": f"{p['total_energy']:.2f}",
+            "System efficiency": f"{100*p['system_eff']:.1f}%",
+            "Modeled cost CHF/kWh net": f"{p['cost_per_net_kwh']:.3f}",
+        }
+
+    _candidate_rows = []
+    _seen_candidates = set()
+    for _label, _candidate in [
+        ("Balanced stretch from current point", v29_balanced_energy_candidate),
+        ("Lowest total external energy", v29_lowest_energy_candidate),
+        ("Lowest cost with energy + cost parity", v29_lowest_cost_dual_candidate),
+    ]:
+        if _candidate is None:
+            continue
+        _key = (
+            round(_candidate["plasma"], 8),
+            round(_candidate["recovery"], 8),
+            round(_candidate["engine_eff"], 8),
+            round(_candidate["heat_recovery"], 8),
+        )
+        if _key not in _seen_candidates:
+            _seen_candidates.add(_key)
+            _candidate_rows.append(_v29_candidate_row(_label, _candidate))
+
+    st.markdown("##### Representative feasible candidates")
+    st.table(_candidate_rows)
+
+    if v29_balanced_energy_candidate is not None:
+        _b = v29_balanced_energy_candidate
+        st.success(
+            f"Balanced-search candidate: plasma {_b['plasma']:.1f} kWh/kg H2, "
+            f"total H2 recovery {100*_b['recovery']:.1f}%, engine BTE {100*_b['engine_eff']:.1f}%, "
+            f"heat recovery {100*_b['heat_recovery']:.1f}%. Under the selected standard-state guards, "
+            f"this point gives about {100*_b['system_eff']:.1f}% total-energy-to-shaft efficiency."
+        )
+else:
+    st.error(
+        "No energy-competitive point was found inside the selected V2.9 search ranges after applying "
+        "the standard-state energy and exergy guards. Expand the search ranges or improve the assumed architecture."
+    )
+
+st.markdown(
+    f"""
+    <div class="horg-callout">
+    <b>V2.9 interpretation boundary:</b> a grid point marked feasible is only feasible within this
+    lumped screening model. The scan does not solve temperature-dependent Gibbs equilibrium,
+    electron-energy distributions, detailed H/O/OH kinetics, sheath fields, CFD, electrode erosion,
+    membrane selectivity, H2/O2 flammability management, transient control or capital cost.
+    A competitive grid point is therefore a <b>research target combination</b>, not a validated reactor design.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.subheader("V2.9 Scientific Comparison — Same Net Shaft Power")
 
 st.caption(
     f"All four pathways below are normalized to the same useful mechanical output: "
@@ -2908,7 +3320,7 @@ st.dataframe(
 st.markdown(
     f"""
     <div class="horg-note">
-    <b>How to read V2.8:</b><br>
+    <b>How to read V2.9:</b><br>
     • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
     • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
       The displayed electrical value is the remaining plasma electricity after the selected
@@ -2962,7 +3374,7 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The thermal and electrical process inputs are separated in V2.8. The reaction-enthalpy
+    The thermal and electrical process inputs are separated in V2.9. The reaction-enthalpy
     reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
@@ -3089,14 +3501,14 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V2.8 design diagnosis varies one lever at a time and solves the
+        The V2.9 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
-        **V2.8 four-pathway same-net-power normalization**
+        **V2.9 four-pathway same-net-power normalization**
 
         The primary comparison rescales all four pathways to the same selected net shaft power.  
         Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
@@ -3154,7 +3566,7 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://www.energy.gov/cmei/fuels/technical-targets-proton-exchange-membrane-electrolysis
         - https://stage.energy.gov/cmei/fuels/technical-targets-high-temperature-electrolysis
 
-        **V2.8 standard-state thermodynamic references**
+        **V2.9 standard-state thermodynamic references**
 
         NIST-JANAF water(l), 298.15 K, 1 bar:
         - reaction Gibbs requirement: **{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H₂**
@@ -3166,15 +3578,19 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://janaf.nist.gov/tables/H-063.html
         - https://www.hydrogen.energy.gov/docs/hydrogenprogramlibraries/pdfs/46676.pdf
 
-        **V2.8 advanced diagnostic boundary**
+        **V2.9 advanced diagnostic boundary**
 
         E/N uses an ideal-gas bulk number density. Ion drift uses a user-supplied effective mobility.
         Quench survival uses an optional first-order lumped timescale. Reactor volume is inferred from
-        ideal-gas flow × residence time. These are screening equations only; V2.8 still does not solve
-        non-equilibrium plasma kinetics, electron-energy distributions, sheath physics, detailed CFD,
-        electrode erosion, radiative heat transfer, membrane selectivity, H₂/O₂ flammability management,
-        startup energy or transient vehicle dynamics.
+        ideal-gas flow × residence time. The V2.9 feasible-region solver then scans coupled values of
+        plasma electricity, total H₂ recovery, H₂-engine efficiency and heat recovery. It rejects points
+        that fail the standard-state ΔH energy guard or the simple ΔG exergy guard before comparing them
+        with the conventional gasoline efficiency and operating-cost benchmarks. Grid fractions are
+        deterministic search results, not probabilities. These remain screening equations only; V2.9
+        still does not solve non-equilibrium plasma kinetics, electron-energy distributions, sheath physics,
+        detailed CFD, electrode erosion, radiative heat transfer, membrane selectivity, H₂/O₂ flammability
+        management, startup energy or transient vehicle dynamics.
         """
     )
 
-st.caption("HPRS Automotive V2.8 · Advanced theoretical screening model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.9 · Advanced theoretical screening model · Simulation → laboratory validation → proof of concept")
