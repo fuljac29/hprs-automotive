@@ -90,7 +90,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5.1</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5.2</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -149,7 +149,7 @@ st.markdown(
 )
 
 st.info(
-    "Three hypotheses are compared in V2.5: conventional gasoline, dry HPRS "
+    "Three hypotheses are compared in V2.5.2: conventional gasoline, dry HPRS "
     "carbon-retention, and gasoline + water/steam. Water and gasoline are modeled "
     "as separate feeds, not as a stable liquid blend in one tank."
 )
@@ -488,6 +488,180 @@ fuel_ratio_same_net = (
     else math.inf
 )
 
+# ============================================================
+# STEAM-ASSISTED GASOLINE + WATER COMPARISON
+# ============================================================
+
+if steam_route == "Steam reforming + WGS":
+    steam_h2_yield_kg_per_kg_fuel = H2_KG_PER_KG_FUEL_STEAM_WGS
+    steam_water_kg_per_kg_fuel = WATER_KG_PER_KG_FUEL_STEAM_WGS
+    steam_reaction_floor_kwh_per_kg_h2 = STEAM_WGS_REACTION_KWH_PER_KG_H2
+    steam_carbon_product = "CO2"
+else:
+    steam_h2_yield_kg_per_kg_fuel = H2_KG_PER_KG_FUEL_STEAM_SYNGAS
+    steam_water_kg_per_kg_fuel = WATER_KG_PER_KG_FUEL_STEAM_SYNGAS
+    steam_reaction_floor_kwh_per_kg_h2 = STEAM_SYNGAS_REACTION_KWH_PER_KG_H2
+    steam_carbon_product = "CO"
+
+steam_effective_h2_yield = (
+    steam_h2_yield_kg_per_kg_fuel
+    * reactor_conversion
+    * h2_recovery
+)
+
+steam_fuel_kg_h = (
+    h2_required_engine_kg_h / steam_effective_h2_yield
+    if steam_effective_h2_yield > 0
+    else math.inf
+)
+
+steam_fuel_l_h = (
+    steam_fuel_kg_h / fuel_density
+    if fuel_density > 0
+    else math.inf
+)
+
+steam_h2_gross_kg_h = (
+    steam_fuel_kg_h
+    * steam_h2_yield_kg_per_kg_fuel
+    * reactor_conversion
+)
+
+steam_h2_to_engine_kg_h = steam_h2_gross_kg_h * h2_recovery
+
+steam_water_gross_kg_h = (
+    steam_fuel_kg_h
+    * steam_water_kg_per_kg_fuel
+)
+
+steam_water_makeup_kg_h = (
+    steam_water_gross_kg_h
+    * (1.0 - water_recycle)
+)
+
+# First-order density assumption for make-up water: 1 kg ~ 1 L.
+steam_water_makeup_l_h = steam_water_makeup_kg_h
+
+steam_process_gross_kw = (
+    steam_h2_gross_kg_h
+    * steam_process_energy
+)
+
+steam_process_external_kw = (
+    steam_process_gross_kw
+    * (1.0 - steam_heat_recovery)
+)
+
+steam_process_shaft_burden_kw = (
+    steam_process_external_kw / generator_eff
+    if generator_eff > 0
+    else math.inf
+)
+
+steam_net_shaft_kw = gross_engine_kw - steam_process_shaft_burden_kw
+
+steam_fuel_chemical_kw = steam_fuel_kg_h * gasoline_lhv
+
+steam_net_eff = (
+    steam_net_shaft_kw / steam_fuel_chemical_kw
+    if steam_fuel_chemical_kw > 0
+    else 0.0
+)
+
+if steam_route == "Steam reforming + WGS":
+    steam_co2_kg_h = (
+        steam_fuel_kg_h
+        * CO2_KG_PER_KG_FUEL_STEAM_WGS
+        * reactor_conversion
+    )
+    steam_co_kg_h = 0.0
+else:
+    CO_MOLAR = 28.0101
+    steam_co_kg_per_kg_fuel = (
+        (8.0 * CO_MOLAR / 1000.0)
+        / OCTANE_MOLAR_KG
+    )
+    steam_co_kg_h = (
+        steam_fuel_kg_h
+        * steam_co_kg_per_kg_fuel
+        * reactor_conversion
+    )
+    steam_co2_kg_h = 0.0
+
+# Operating-cost views.
+conventional_fuel_cost_chf_h = (
+    conv_same_gross_fuel_l_h
+    * gasoline_price_chf_l
+)
+
+dry_hprs_fuel_cost_chf_h = (
+    fuel_l_h
+    * gasoline_price_chf_l
+)
+
+dry_hprs_external_energy_cost_chf_h = (
+    plasma_external_kw
+    * electricity_price_chf_kwh
+)
+
+dry_hprs_cost_external_power_chf_h = (
+    dry_hprs_fuel_cost_chf_h
+    + dry_hprs_external_energy_cost_chf_h
+)
+
+steam_fuel_cost_chf_h = (
+    steam_fuel_l_h
+    * gasoline_price_chf_l
+)
+
+steam_water_cost_chf_h = (
+    (steam_water_makeup_l_h / 1000.0)
+    * water_price_chf_m3
+)
+
+steam_external_energy_cost_chf_h = (
+    steam_process_external_kw
+    * electricity_price_chf_kwh
+)
+
+steam_cost_external_power_chf_h = (
+    steam_fuel_cost_chf_h
+    + steam_water_cost_chf_h
+    + steam_external_energy_cost_chf_h
+)
+
+conventional_cost_per_kwh_shaft = (
+    conventional_fuel_cost_chf_h / gross_engine_kw
+    if gross_engine_kw > 0
+    else math.inf
+)
+
+dry_hprs_fuel_cost_per_net_kwh = (
+    dry_hprs_fuel_cost_chf_h / net_shaft_kw
+    if net_shaft_kw > 0
+    else math.inf
+)
+
+dry_hprs_external_cost_per_net_kwh = (
+    dry_hprs_cost_external_power_chf_h / net_shaft_kw
+    if net_shaft_kw > 0
+    else math.inf
+)
+
+steam_fuel_water_cost_per_net_kwh = (
+    (steam_fuel_cost_chf_h + steam_water_cost_chf_h)
+    / steam_net_shaft_kw
+    if steam_net_shaft_kw > 0
+    else math.inf
+)
+
+steam_external_cost_per_net_kwh = (
+    steam_cost_external_power_chf_h
+    / steam_net_shaft_kw
+    if steam_net_shaft_kw > 0
+    else math.inf
+)
+
 # Performance-target calculator: work backwards from desired net shaft power.
 def max_plasma_gross_power_for_target(target_net_kw):
     available_shaft_kw = gross_engine_kw - target_net_kw
@@ -646,7 +820,7 @@ with left:
                 carbon_uncaptured_kg_h,
             ],
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.markdown(
@@ -686,7 +860,7 @@ with right:
                 net_shaft_kw,
             ],
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     st.markdown(
@@ -743,7 +917,7 @@ for target_kw in target_levels_kw:
         ),
     })
 
-st.dataframe(target_table, use_container_width=True, hide_index=True)
+st.dataframe(target_table, width="stretch", hide_index=True)
 
 st.markdown(
     f"""
@@ -1127,7 +1301,7 @@ diagnosis_rows.append(
 
 st.dataframe(
     diagnosis_rows,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 
@@ -1313,7 +1487,7 @@ st.dataframe(
             ),
         ],
     },
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 
@@ -1457,7 +1631,7 @@ st.dataframe(
             f"{shaft_draw_for_plasma_kw:.2f} kW",
         ],
     },
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 
@@ -1514,7 +1688,7 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V2.2 design diagnosis varies one lever at a time and solves the
+        The V2.5.2 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
@@ -1545,4 +1719,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.5.1 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.5.2 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
