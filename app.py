@@ -90,7 +90,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5.2</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.6</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -102,6 +102,7 @@ st.markdown(
       <span class="horg-chip">Mass & energy balance</span>
       <span class="horg-chip">Conventional ICE benchmark</span>
       <span class="horg-chip">Pulsed plasma control</span>
+      <span class="horg-chip">Same-net-power normalization</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -186,6 +187,21 @@ with st.sidebar:
         "Conventional gasoline engine efficiency (%)", 20, 45, 30, 1,
         help="Reference brake efficiency for the conventional gasoline benchmark.",
     ) / 100.0
+
+    st.divider()
+    st.subheader("Scientific normalization")
+
+    normalized_target_kw = st.slider(
+        "Same net shaft power for comparison (kW)",
+        min_value=10,
+        max_value=150,
+        value=50,
+        step=5,
+        help=(
+            "All three pathways are rescaled to deliver this same net mechanical "
+            "shaft power. This is the primary apples-to-apples comparison in V2.6."
+        ),
+    )
 
     reactor_conversion = st.slider(
         "Overall fuel conversion after recycle (%)", 60, 100, 92, 1,
@@ -332,28 +348,46 @@ with st.sidebar:
         ),
     )
 
-    steam_process_energy = st.number_input(
-        "Steam-route process energy (kWh/kg H₂)",
-        min_value=0.0,
+    steam_reaction_floor_input = (
+        STEAM_WGS_REACTION_KWH_PER_KG_H2
+        if steam_route == "Steam reforming + WGS"
+        else STEAM_SYNGAS_REACTION_KWH_PER_KG_H2
+    )
+
+    steam_thermal_energy = st.number_input(
+        "Steam-route thermal demand (kWh_th/kg H₂)",
+        min_value=float(round(steam_reaction_floor_input, 2)),
         max_value=40.0,
-        value=12.0,
+        value=float(max(8.0, math.ceil(steam_reaction_floor_input * 2.0) / 2.0)),
         step=0.5,
+        key=f"steam_thermal_{steam_route}",
         help=(
-            "Exploratory gross process-energy input before heat recovery. "
-            "Includes reformer/plasma/steam-generation allowance chosen by the user; "
-            "it is not a validated HydrogenOrg performance value."
+            "Gross thermal process demand. The lower limit is the approximate "
+            "standard-state reaction-enthalpy reference for the selected idealized route."
+        ),
+    )
+
+    steam_electrical_aux = st.number_input(
+        "Steam-route electrical auxiliaries (kWh_e/kg H₂)",
+        min_value=0.0,
+        max_value=15.0,
+        value=1.5,
+        step=0.1,
+        help=(
+            "Exploratory electrical demand for pumps, controls, separation, compression "
+            "and any electrically driven reactor auxiliaries."
         ),
     )
 
     steam_heat_recovery = st.slider(
-        "Steam-route heat recovery (%)",
+        "Steam-route thermal recovery (%)",
         min_value=0,
         max_value=90,
         value=50,
         step=5,
         help=(
-            "Fraction of gross process-energy demand offset by recovered heat. "
-            "Use only as a scenario parameter until experimentally validated."
+            "Fraction of gross thermal process demand supplied by recovered heat. "
+            "This reduces external thermal demand, not the electrical auxiliary load."
         ),
     ) / 100.0
 
@@ -386,6 +420,19 @@ with st.sidebar:
         step=0.01,
         format="%.3f",
         help="Editable cost assumption for externally supplied process electricity.",
+    )
+
+    thermal_energy_price_chf_kwh = st.number_input(
+        "Supplemental thermal-energy price (CHF/kWh_th)",
+        min_value=0.0,
+        max_value=1.5,
+        value=0.0,
+        step=0.01,
+        format="%.3f",
+        help=(
+            "Optional marginal price for unrecovered steam-route process heat. "
+            "Leave at 0 if you want to report the heat requirement without assigning a cost."
+        ),
     )
 
     water_price_chf_m3 = st.number_input(
@@ -542,23 +589,31 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-steam_process_gross_kw = (
+# V2.6 separates thermal and electrical process energy.
+steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
-    * steam_process_energy
+    * steam_thermal_energy
 )
 
-steam_process_external_kw = (
-    steam_process_gross_kw
+steam_thermal_external_kw = (
+    steam_thermal_gross_kw
     * (1.0 - steam_heat_recovery)
 )
 
-steam_process_shaft_burden_kw = (
-    steam_process_external_kw / generator_eff
+steam_electrical_aux_kw = (
+    steam_h2_gross_kg_h
+    * steam_electrical_aux
+)
+
+steam_electrical_shaft_burden_kw = (
+    steam_electrical_aux_kw / generator_eff
     if generator_eff > 0
     else math.inf
 )
 
-steam_net_shaft_kw = gross_engine_kw - steam_process_shaft_burden_kw
+# Recovered/external process heat is reported separately and is not silently
+# converted into shaft burden. Only electrical auxiliaries reduce shaft output.
+steam_net_shaft_kw = gross_engine_kw - steam_electrical_shaft_burden_kw
 
 steam_fuel_chemical_kw = steam_fuel_kg_h * gasoline_lhv
 
@@ -619,15 +674,21 @@ steam_water_cost_chf_h = (
     * water_price_chf_m3
 )
 
-steam_external_energy_cost_chf_h = (
-    steam_process_external_kw
+steam_electrical_cost_chf_h = (
+    steam_electrical_aux_kw
     * electricity_price_chf_kwh
+)
+
+steam_thermal_cost_chf_h = (
+    steam_thermal_external_kw
+    * thermal_energy_price_chf_kwh
 )
 
 steam_cost_external_power_chf_h = (
     steam_fuel_cost_chf_h
     + steam_water_cost_chf_h
-    + steam_external_energy_cost_chf_h
+    + steam_electrical_cost_chf_h
+    + steam_thermal_cost_chf_h
 )
 
 conventional_cost_per_kwh_shaft = (
@@ -660,6 +721,213 @@ steam_external_cost_per_net_kwh = (
     / steam_net_shaft_kw
     if steam_net_shaft_kw > 0
     else math.inf
+)
+
+# ============================================================
+# V2.6 SAME-NET-POWER NORMALIZATION
+# ============================================================
+
+comparison_net_kw = float(normalized_target_kw)
+
+# Conventional gasoline: no modeled process parasitic load.
+norm_conv_fuel_kg_h = comparison_net_kw / (conventional_eff * gasoline_lhv)
+norm_conv_fuel_l_h = norm_conv_fuel_kg_h / fuel_density
+norm_conv_co2_kg_h = norm_conv_fuel_kg_h * CO2_KG_PER_KG_FUEL_COMPLETE_OX
+norm_conv_cost_chf_h = norm_conv_fuel_l_h * gasoline_price_chf_l
+
+# Dry HPRS: use the current effective plasma SEI as a scalable specific-energy
+# assumption. This is exact for the continuous-SEI model and a local scaling
+# approximation for the pulsed operating point.
+dry_h2_gross_per_kg_fuel = H2_KG_PER_KG_FUEL_IDEAL * reactor_conversion
+dry_h2_delivered_per_kg_fuel = dry_h2_gross_per_kg_fuel * h2_recovery
+dry_gross_shaft_per_kg_fuel = (
+    dry_h2_delivered_per_kg_fuel * H2_LHV_KWH_KG * engine_eff
+)
+dry_plasma_gross_e_per_kg_fuel = dry_h2_gross_per_kg_fuel * effective_plasma_sei
+dry_plasma_external_e_per_kg_fuel = (
+    dry_plasma_gross_e_per_kg_fuel * (1.0 - recovery_offset)
+)
+dry_plasma_shaft_burden_per_kg_fuel = (
+    dry_plasma_external_e_per_kg_fuel / generator_eff
+    if generator_eff > 0 else math.inf
+)
+dry_net_shaft_per_kg_fuel = (
+    dry_gross_shaft_per_kg_fuel - dry_plasma_shaft_burden_per_kg_fuel
+)
+
+if dry_net_shaft_per_kg_fuel > 0:
+    norm_dry_fuel_kg_h = comparison_net_kw / dry_net_shaft_per_kg_fuel
+    norm_dry_fuel_l_h = norm_dry_fuel_kg_h / fuel_density
+    norm_dry_h2_gross_kg_h = norm_dry_fuel_kg_h * dry_h2_gross_per_kg_fuel
+    norm_dry_h2_to_engine_kg_h = norm_dry_fuel_kg_h * dry_h2_delivered_per_kg_fuel
+    norm_dry_plasma_external_kw = (
+        norm_dry_fuel_kg_h * dry_plasma_external_e_per_kg_fuel
+    )
+    norm_dry_carbon_captured_kg_h = (
+        norm_dry_fuel_kg_h
+        * C_KG_PER_KG_FUEL_IDEAL
+        * reactor_conversion
+        * carbon_capture
+    )
+    norm_dry_uncaptured_c_kg_h = (
+        norm_dry_fuel_kg_h
+        * C_KG_PER_KG_FUEL_IDEAL
+        * reactor_conversion
+        * (1.0 - carbon_capture)
+    )
+    norm_dry_uncaptured_co2_potential_kg_h = (
+        norm_dry_uncaptured_c_kg_h * CO2_PER_C
+    )
+    norm_dry_cost_chf_h = norm_dry_fuel_l_h * gasoline_price_chf_l
+else:
+    norm_dry_fuel_kg_h = math.inf
+    norm_dry_fuel_l_h = math.inf
+    norm_dry_h2_gross_kg_h = math.inf
+    norm_dry_h2_to_engine_kg_h = math.inf
+    norm_dry_plasma_external_kw = math.inf
+    norm_dry_carbon_captured_kg_h = math.inf
+    norm_dry_uncaptured_co2_potential_kg_h = math.inf
+    norm_dry_cost_chf_h = math.inf
+
+# Steam-assisted route. Thermal demand is reported separately; electrical
+# auxiliaries are treated as an onboard parasitic shaft burden.
+steam_h2_gross_per_kg_fuel = steam_h2_yield_kg_per_kg_fuel * reactor_conversion
+steam_h2_delivered_per_kg_fuel = steam_h2_gross_per_kg_fuel * h2_recovery
+steam_gross_shaft_per_kg_fuel = (
+    steam_h2_delivered_per_kg_fuel * H2_LHV_KWH_KG * engine_eff
+)
+steam_electrical_per_kg_fuel = (
+    steam_h2_gross_per_kg_fuel * steam_electrical_aux
+)
+steam_electrical_shaft_burden_per_kg_fuel = (
+    steam_electrical_per_kg_fuel / generator_eff
+    if generator_eff > 0 else math.inf
+)
+steam_net_shaft_per_kg_fuel = (
+    steam_gross_shaft_per_kg_fuel - steam_electrical_shaft_burden_per_kg_fuel
+)
+
+if steam_net_shaft_per_kg_fuel > 0:
+    norm_steam_fuel_kg_h = comparison_net_kw / steam_net_shaft_per_kg_fuel
+    norm_steam_fuel_l_h = norm_steam_fuel_kg_h / fuel_density
+    norm_steam_h2_gross_kg_h = norm_steam_fuel_kg_h * steam_h2_gross_per_kg_fuel
+    norm_steam_h2_to_engine_kg_h = (
+        norm_steam_fuel_kg_h * steam_h2_delivered_per_kg_fuel
+    )
+    norm_steam_water_gross_kg_h = (
+        norm_steam_fuel_kg_h * steam_water_kg_per_kg_fuel
+    )
+    norm_steam_water_makeup_l_h = (
+        norm_steam_water_gross_kg_h * (1.0 - water_recycle)
+    )
+    norm_steam_electrical_kw = (
+        norm_steam_h2_gross_kg_h * steam_electrical_aux
+    )
+    norm_steam_thermal_gross_kw = (
+        norm_steam_h2_gross_kg_h * steam_thermal_energy
+    )
+    norm_steam_thermal_external_kw = (
+        norm_steam_thermal_gross_kw * (1.0 - steam_heat_recovery)
+    )
+
+    if steam_route == "Steam reforming + WGS":
+        norm_steam_co2_kg_h = (
+            norm_steam_fuel_kg_h
+            * CO2_KG_PER_KG_FUEL_STEAM_WGS
+            * reactor_conversion
+        )
+        norm_steam_co_kg_h = 0.0
+        norm_steam_co2_equiv_from_co_kg_h = 0.0
+    else:
+        norm_steam_co_kg_h = (
+            norm_steam_fuel_kg_h
+            * steam_co_kg_per_kg_fuel
+            * reactor_conversion
+        )
+        norm_steam_co2_kg_h = 0.0
+        norm_steam_co2_equiv_from_co_kg_h = (
+            norm_steam_co_kg_h * (44.0095 / 28.0101)
+        )
+
+    norm_steam_fuel_cost_chf_h = norm_steam_fuel_l_h * gasoline_price_chf_l
+    norm_steam_water_cost_chf_h = (
+        norm_steam_water_makeup_l_h / 1000.0 * water_price_chf_m3
+    )
+    norm_steam_thermal_cost_chf_h = (
+        norm_steam_thermal_external_kw * thermal_energy_price_chf_kwh
+    )
+    # Electrical auxiliaries are modeled as onboard shaft burden in the main
+    # normalized comparison, so their energy is already reflected in fuel use.
+    norm_steam_cost_chf_h = (
+        norm_steam_fuel_cost_chf_h
+        + norm_steam_water_cost_chf_h
+        + norm_steam_thermal_cost_chf_h
+    )
+else:
+    norm_steam_fuel_kg_h = math.inf
+    norm_steam_fuel_l_h = math.inf
+    norm_steam_h2_gross_kg_h = math.inf
+    norm_steam_h2_to_engine_kg_h = math.inf
+    norm_steam_water_makeup_l_h = math.inf
+    norm_steam_electrical_kw = math.inf
+    norm_steam_thermal_gross_kw = math.inf
+    norm_steam_thermal_external_kw = math.inf
+    norm_steam_co2_kg_h = math.inf
+    norm_steam_co_kg_h = math.inf
+    norm_steam_co2_equiv_from_co_kg_h = math.inf
+    norm_steam_cost_chf_h = math.inf
+
+# Per-kWh-net indicators.
+def per_net(value):
+    return value / comparison_net_kw if comparison_net_kw > 0 else math.inf
+
+norm_conv_l_per_kwh = per_net(norm_conv_fuel_l_h)
+norm_conv_co2_per_kwh = per_net(norm_conv_co2_kg_h)
+norm_conv_cost_per_kwh = per_net(norm_conv_cost_chf_h)
+
+norm_dry_l_per_kwh = per_net(norm_dry_fuel_l_h)
+norm_dry_h2_per_kwh = per_net(norm_dry_h2_to_engine_kg_h)
+norm_dry_electric_per_kwh = per_net(norm_dry_plasma_external_kw)
+norm_dry_captured_c_per_kwh = per_net(norm_dry_carbon_captured_kg_h)
+norm_dry_uncaptured_co2_potential_per_kwh = per_net(
+    norm_dry_uncaptured_co2_potential_kg_h
+)
+norm_dry_cost_per_kwh = per_net(norm_dry_cost_chf_h)
+
+norm_steam_l_per_kwh = per_net(norm_steam_fuel_l_h)
+norm_steam_h2_per_kwh = per_net(norm_steam_h2_to_engine_kg_h)
+norm_steam_water_l_per_kwh = per_net(norm_steam_water_makeup_l_h)
+norm_steam_electric_per_kwh = per_net(norm_steam_electrical_kw)
+norm_steam_thermal_external_per_kwh = per_net(norm_steam_thermal_external_kw)
+norm_steam_cost_per_kwh = per_net(norm_steam_cost_chf_h)
+
+if steam_route == "Steam reforming + WGS":
+    norm_steam_carbon_metric = f"{per_net(norm_steam_co2_kg_h):.3f} kg CO₂/kWh net"
+else:
+    norm_steam_carbon_metric = (
+        f"{per_net(norm_steam_co_kg_h):.3f} kg CO/kWh net; "
+        f"{per_net(norm_steam_co2_equiv_from_co_kg_h):.3f} kg CO₂-eq if oxidized"
+    )
+
+norm_conv_total_eff = comparison_net_kw / (
+    norm_conv_fuel_kg_h * gasoline_lhv
+)
+norm_dry_total_eff = (
+    comparison_net_kw / (norm_dry_fuel_kg_h * gasoline_lhv)
+    if math.isfinite(norm_dry_fuel_kg_h) else 0.0
+)
+norm_steam_fuel_eff = (
+    comparison_net_kw / (norm_steam_fuel_kg_h * gasoline_lhv)
+    if math.isfinite(norm_steam_fuel_kg_h) else 0.0
+)
+norm_steam_total_input_kw = (
+    norm_steam_fuel_kg_h * gasoline_lhv + norm_steam_thermal_external_kw
+    if math.isfinite(norm_steam_fuel_kg_h) else math.inf
+)
+norm_steam_total_eff = (
+    comparison_net_kw / norm_steam_total_input_kw
+    if norm_steam_total_input_kw > 0 and math.isfinite(norm_steam_total_input_kw)
+    else 0.0
 )
 
 # Performance-target calculator: work backwards from desired net shaft power.
@@ -1424,8 +1692,8 @@ s5.metric(
 )
 
 s6.metric(
-    "Process-energy input",
-    f"{steam_process_energy:.1f} kWh/kg H₂",
+    "Thermal process demand",
+    f"{steam_thermal_energy:.1f} kWh_th/kg H₂",
 )
 
 s7.metric(
@@ -1443,6 +1711,11 @@ else:
         "CO produced in syngas",
         f"{steam_co_kg_h:.1f} kg/h",
     )
+
+se1, se2, se3 = st.columns(3)
+se1.metric("Electrical auxiliaries", f"{steam_electrical_aux:.2f} kWh_e/kg H₂")
+se2.metric("External thermal demand", f"{steam_thermal_external_kw:.1f} kW_th")
+se3.metric("Electrical auxiliary demand", f"{steam_electrical_aux_kw:.1f} kW_e")
 
 st.dataframe(
     {
@@ -1491,63 +1764,180 @@ st.dataframe(
     hide_index=True,
 )
 
-st.subheader("Operating Cost Comparison")
+st.subheader("V2.6 Scientific Comparison — Same Net Shaft Power")
 
 st.caption(
-    "Costs are scenario estimates using the editable prices in the sidebar. "
-    "Two HPRS cost views are shown: onboard fuel/water only, and a second view "
-    "that prices the remaining process electricity as externally purchased power."
+    f"All three pathways below are normalized to the same useful mechanical output: "
+    f"{comparison_net_kw:.0f} kW net shaft. This is the primary scientific comparison."
 )
 
-cost1, cost2, cost3 = st.columns(3)
-
-cost1.metric(
+n1, n2, n3 = st.columns(3)
+n1.metric(
     "Conventional gasoline",
-    f"CHF {conventional_fuel_cost_chf_h:.2f}/h",
-    f"CHF {conventional_cost_per_kwh_shaft:.3f}/kWh shaft",
+    f"{norm_conv_l_per_kwh:.3f} L/kWh net",
+    delta=None,
 )
-
-cost2.metric(
-    "Dry HPRS fuel only",
-    f"CHF {dry_hprs_fuel_cost_chf_h:.2f}/h",
+n2.metric(
+    "Dry HPRS",
     (
-        f"CHF {dry_hprs_fuel_cost_per_net_kwh:.3f}/kWh net"
-        if math.isfinite(dry_hprs_fuel_cost_per_net_kwh)
-        else "No positive net shaft"
+        f"{norm_dry_l_per_kwh:.3f} L/kWh net"
+        if math.isfinite(norm_dry_l_per_kwh) else "Not self-sustaining"
     ),
+    delta=None,
 )
-
-cost3.metric(
-    "Steam route fuel + water",
-    f"CHF {(steam_fuel_cost_chf_h + steam_water_cost_chf_h):.2f}/h",
+n3.metric(
+    "Gasoline + steam",
     (
-        f"CHF {steam_fuel_water_cost_per_net_kwh:.3f}/kWh net"
-        if math.isfinite(steam_fuel_water_cost_per_net_kwh)
-        else "No positive net shaft"
+        f"{norm_steam_l_per_kwh:.3f} L/kWh net"
+        if math.isfinite(norm_steam_l_per_kwh) else "Not self-sustaining"
     ),
+    delta=None,
 )
 
-ec1, ec2 = st.columns(2)
-
-ec1.metric(
-    "Dry HPRS incl. priced external electricity",
-    f"CHF {dry_hprs_cost_external_power_chf_h:.2f}/h",
-    (
-        f"CHF {dry_hprs_external_cost_per_net_kwh:.3f}/kWh net"
-        if math.isfinite(dry_hprs_external_cost_per_net_kwh)
-        else "No positive net shaft"
-    ),
+st.dataframe(
+    {
+        "Normalized metric": [
+            "Net shaft basis",
+            "Gasoline consumption",
+            "H₂ delivered to engine",
+            "Make-up water",
+            "Process electricity",
+            "External process heat",
+            "Fuel-to-net-shaft efficiency",
+            "Total-energy-to-net efficiency",
+            "Carbon / CO₂ indicator",
+            "Solid carbon captured",
+            "Operating cost",
+        ],
+        "Conventional gasoline ICE": [
+            f"{comparison_net_kw:.0f} kW net",
+            f"{norm_conv_l_per_kwh:.3f} L/kWh net",
+            "0 kg/kWh net",
+            "0 L/kWh net",
+            "0 kWh_e/kWh net",
+            "0 kWh_th/kWh net",
+            f"{100*norm_conv_total_eff:.1f}%",
+            f"{100*norm_conv_total_eff:.1f}%",
+            f"{norm_conv_co2_per_kwh:.3f} kg CO₂/kWh net",
+            "0 kg/kWh net",
+            f"CHF {norm_conv_cost_per_kwh:.3f}/kWh net",
+        ],
+        "Dry HPRS carbon-retention": [
+            f"{comparison_net_kw:.0f} kW net",
+            (
+                f"{norm_dry_l_per_kwh:.3f} L/kWh net"
+                if math.isfinite(norm_dry_l_per_kwh) else "Not self-sustaining"
+            ),
+            (
+                f"{norm_dry_h2_per_kwh:.4f} kg/kWh net"
+                if math.isfinite(norm_dry_h2_per_kwh) else "—"
+            ),
+            "0 L/kWh net",
+            (
+                f"{norm_dry_electric_per_kwh:.3f} kWh_e/kWh net"
+                if math.isfinite(norm_dry_electric_per_kwh) else "—"
+            ),
+            "Not modeled in V2.6",
+            (
+                f"{100*norm_dry_total_eff:.1f}%"
+                if math.isfinite(norm_dry_fuel_kg_h) else "—"
+            ),
+            (
+                f"{100*norm_dry_total_eff:.1f}%"
+                if math.isfinite(norm_dry_fuel_kg_h) else "—"
+            ),
+            (
+                f"{norm_dry_uncaptured_co2_potential_per_kwh:.3f} kg CO₂/kWh net "
+                "uncaptured-C oxidation potential"
+                if math.isfinite(norm_dry_uncaptured_co2_potential_per_kwh) else "—"
+            ),
+            (
+                f"{norm_dry_captured_c_per_kwh:.3f} kg C/kWh net"
+                if math.isfinite(norm_dry_captured_c_per_kwh) else "—"
+            ),
+            (
+                f"CHF {norm_dry_cost_per_kwh:.3f}/kWh net"
+                if math.isfinite(norm_dry_cost_per_kwh) else "—"
+            ),
+        ],
+        "Gasoline + steam route": [
+            f"{comparison_net_kw:.0f} kW net",
+            (
+                f"{norm_steam_l_per_kwh:.3f} L/kWh net"
+                if math.isfinite(norm_steam_l_per_kwh) else "Not self-sustaining"
+            ),
+            (
+                f"{norm_steam_h2_per_kwh:.4f} kg/kWh net"
+                if math.isfinite(norm_steam_h2_per_kwh) else "—"
+            ),
+            (
+                f"{norm_steam_water_l_per_kwh:.3f} L/kWh net"
+                if math.isfinite(norm_steam_water_l_per_kwh) else "—"
+            ),
+            (
+                f"{norm_steam_electric_per_kwh:.3f} kWh_e/kWh net"
+                if math.isfinite(norm_steam_electric_per_kwh) else "—"
+            ),
+            (
+                f"{norm_steam_thermal_external_per_kwh:.3f} kWh_th/kWh net"
+                if math.isfinite(norm_steam_thermal_external_per_kwh) else "—"
+            ),
+            (
+                f"{100*norm_steam_fuel_eff:.1f}%"
+                if math.isfinite(norm_steam_fuel_kg_h) else "—"
+            ),
+            (
+                f"{100*norm_steam_total_eff:.1f}%"
+                if math.isfinite(norm_steam_fuel_kg_h) else "—"
+            ),
+            norm_steam_carbon_metric,
+            "0 kg/kWh net in selected ideal steam chemistry",
+            (
+                f"CHF {norm_steam_cost_per_kwh:.3f}/kWh net"
+                if math.isfinite(norm_steam_cost_per_kwh) else "—"
+            ),
+        ],
+    },
+    width="stretch",
+    hide_index=True,
 )
 
-ec2.metric(
-    "Steam route incl. priced external process energy",
-    f"CHF {steam_cost_external_power_chf_h:.2f}/h",
-    (
-        f"CHF {steam_external_cost_per_net_kwh:.3f}/kWh net"
-        if math.isfinite(steam_external_cost_per_net_kwh)
-        else "No positive net shaft"
-    ),
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>How to read V2.6:</b><br>
+    • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
+    • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
+      The displayed electrical value is the remaining plasma electricity after the selected
+      recovered-energy offset; it is <b>not added again to cost</b>, avoiding double counting.<br>
+    • The steam route includes electrical auxiliaries as onboard parasitic load, while thermal
+      process demand is reported separately. Only unrecovered thermal demand is included in the
+      total-energy efficiency, and it affects cost only if a non-zero thermal-energy price is entered.<br>
+    • In pulsed-plasma mode, the normalized Dry-HPRS result assumes the current effective
+      kWh/kg H₂ scales locally with hydrogen throughput; that scaling must be validated experimentally.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
+
+with st.expander("Current operating-point costs (non-normalized)"):
+    st.write(
+        f"Conventional gasoline: CHF {conventional_fuel_cost_chf_h:.2f}/h at "
+        f"{gross_engine_kw:.1f} kW gross shaft."
+    )
+    st.write(
+        f"Dry HPRS fuel: CHF {dry_hprs_fuel_cost_chf_h:.2f}/h at "
+        f"{net_shaft_kw:.1f} kW net after plasma burden."
+    )
+    st.write(
+        f"Steam route fuel + water: CHF "
+        f"{(steam_fuel_cost_chf_h + steam_water_cost_chf_h):.2f}/h at "
+        f"{steam_net_shaft_kw:.1f} kW net, excluding any priced supplemental heat."
+    )
+    if thermal_energy_price_chf_kwh > 0:
+        st.write(
+            f"Steam supplemental thermal cost: CHF {steam_thermal_cost_chf_h:.2f}/h."
+        )
 
 st.markdown(
     f"""
@@ -1561,8 +1951,8 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The reaction-enthalpy reference shown above does not include all real
-    steam generation, heat-transfer, compression, separation or auxiliary losses.
+    The thermal and electrical process inputs are separated in V2.6. The reaction-enthalpy
+    reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
     unsafe_allow_html=True,
@@ -1695,6 +2085,13 @@ with st.expander("Model basis and references"):
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
+        **V2.6 same-net-power normalization**
+
+        The primary comparison rescales all three pathways to the same selected net shaft power.  
+        Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
+        Steam-route thermal demand and electrical auxiliaries are reported separately.  
+        Unrecovered process heat is included in total-energy efficiency but is priced only when a thermal-energy price is entered.
+
         **Steam-assisted comparison**
 
         Two idealized n-octane references are available:
@@ -1719,4 +2116,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.5.2 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.6 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
