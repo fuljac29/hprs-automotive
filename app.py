@@ -32,6 +32,40 @@ H2_LHV_KWH_KG = 33.3  # U.S. DOE
 CO2_PER_C = 44.0095 / 12.011
 CO2_KG_PER_KG_FUEL_COMPLETE_OX = C_KG_PER_KG_FUEL_IDEAL * CO2_PER_C
 
+# Steam-assisted n-octane reference pathways.
+# A) Steam reforming to syngas:
+# C8H18 + 8 H2O -> 8 CO + 17 H2
+H2_KG_PER_KG_FUEL_STEAM_SYNGAS = (
+    17.0 * H2_MOLAR / 1000.0
+) / OCTANE_MOLAR_KG
+WATER_KG_PER_KG_FUEL_STEAM_SYNGAS = (
+    8.0 * 18.01528 / 1000.0
+) / OCTANE_MOLAR_KG
+
+# B) Steam reforming + complete water-gas shift:
+# C8H18 + 16 H2O -> 8 CO2 + 25 H2
+H2_KG_PER_KG_FUEL_STEAM_WGS = (
+    25.0 * H2_MOLAR / 1000.0
+) / OCTANE_MOLAR_KG
+WATER_KG_PER_KG_FUEL_STEAM_WGS = (
+    16.0 * 18.01528 / 1000.0
+) / OCTANE_MOLAR_KG
+CO2_KG_PER_KG_FUEL_STEAM_WGS = CO2_KG_PER_KG_FUEL_COMPLETE_OX
+
+# Approximate standard-state reaction-enthalpy references for gaseous reactants.
+# Steam reforming: ~1310 kJ/mol n-octane.
+# Complete WGS adds ~8*(-41) kJ/mol, giving ~982 kJ/mol net.
+STEAM_SYNGAS_REACTION_KJ_PER_MOL = 1310.0
+STEAM_WGS_REACTION_KJ_PER_MOL = 982.0
+
+STEAM_SYNGAS_REACTION_KWH_PER_KG_H2 = (
+    STEAM_SYNGAS_REACTION_KJ_PER_MOL / 3600.0 / OCTANE_MOLAR_KG
+) / H2_KG_PER_KG_FUEL_STEAM_SYNGAS
+
+STEAM_WGS_REACTION_KWH_PER_KG_H2 = (
+    STEAM_WGS_REACTION_KJ_PER_MOL / 3600.0 / OCTANE_MOLAR_KG
+) / H2_KG_PER_KG_FUEL_STEAM_WGS
+
 st.markdown(
     """
     <style>
@@ -56,7 +90,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.2</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.4</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -156,13 +190,24 @@ with st.sidebar:
             format="%.1f",
         )
 
-        pulse_frequency_khz = st.number_input(
-            "Pulse frequency per cell (kHz)",
-            min_value=0.1,
-            max_value=200.0,
+        st.markdown("#### Pulse frequency control")
+
+        pulse_frequency_khz = st.slider(
+            "Pulse frequency (kHz)",
+            min_value=0.5,
+            max_value=100.0,
             value=20.0,
-            step=1.0,
-            format="%.1f",
+            step=0.5,
+            help=(
+                "Electrical pulse repetition frequency for each active plasma cell. "
+                "Average plasma power increases linearly with frequency when pulse "
+                "energy and active-cell count are unchanged."
+            ),
+        )
+
+        st.caption(
+            f"Current pulse frequency: **{pulse_frequency_khz:.1f} kHz** "
+            f"({pulse_frequency_khz*1000:.0f} pulses/s per active cell)"
         )
 
         pulse_width_ns = st.number_input(
@@ -211,6 +256,88 @@ with st.sidebar:
     generator_eff = st.slider(
         "Generator / power-electronics efficiency (%)", 70, 98, 90, 1
     ) / 100.0
+
+    st.divider()
+    st.subheader("Steam-assisted comparison")
+
+    steam_route = st.radio(
+        "Gasoline + steam pathway",
+        [
+            "Steam reforming + WGS",
+            "Steam reforming to syngas",
+        ],
+        index=0,
+        help=(
+            "The WGS route maximizes H2 but converts the fuel carbon to CO2. "
+            "The syngas route produces H2 + CO. Neither route is the same as "
+            "the dry carbon-retention pathway."
+        ),
+    )
+
+    steam_process_energy = st.number_input(
+        "Steam-route process energy (kWh/kg H₂)",
+        min_value=0.0,
+        max_value=40.0,
+        value=12.0,
+        step=0.5,
+        help=(
+            "Exploratory gross process-energy input before heat recovery. "
+            "Includes reformer/plasma/steam-generation allowance chosen by the user; "
+            "it is not a validated HydrogenOrg performance value."
+        ),
+    )
+
+    steam_heat_recovery = st.slider(
+        "Steam-route heat recovery (%)",
+        min_value=0,
+        max_value=90,
+        value=50,
+        step=5,
+        help=(
+            "Fraction of gross process-energy demand offset by recovered heat. "
+            "Use only as a scenario parameter until experimentally validated."
+        ),
+    ) / 100.0
+
+    water_recycle = st.slider(
+        "Water recycle (%)",
+        min_value=0,
+        max_value=95,
+        value=0,
+        step=5,
+        help="Fraction of gross steam/water feed recovered and reused.",
+    ) / 100.0
+
+    st.divider()
+    st.subheader("Operating-cost inputs")
+
+    gasoline_price_chf_l = st.number_input(
+        "Gasoline price (CHF/L)",
+        min_value=0.0,
+        max_value=5.0,
+        value=2.16,
+        step=0.05,
+        help="Editable cost assumption. Default is an illustrative Swiss 95-octane reference.",
+    )
+
+    electricity_price_chf_kwh = st.number_input(
+        "Electricity price (CHF/kWh)",
+        min_value=0.0,
+        max_value=1.5,
+        value=0.277,
+        step=0.01,
+        format="%.3f",
+        help="Editable cost assumption for externally supplied process electricity.",
+    )
+
+    water_price_chf_m3 = st.number_input(
+        "Water price (CHF/m³)",
+        min_value=0.0,
+        max_value=20.0,
+        value=2.0,
+        step=0.5,
+        help="Editable water-cost assumption.",
+    )
 
     fuel_density = st.number_input(
         "Fuel density (kg/L)", 0.68, 0.82, 0.745, 0.005, format="%.3f"
@@ -380,10 +507,14 @@ st.subheader("Pulsed Plasma Control")
 
 if plasma_mode == "Pulsed plasma":
     p1, p2, p3, p4 = st.columns(4)
-    p1.metric("Average pulsed electrical power", f"{derived_pulse_power_kw:.2f} kW")
-    p2.metric("Peak power per active cell", f"{pulse_peak_power_kw_per_cell:.1f} kW")
-    p3.metric("Per-cell electrical duty cycle", f"{pulse_duty_cycle:.3f}%")
+    p1.metric("Pulse frequency", f"{pulse_frequency_khz:.1f} kHz")
+    p2.metric("Average pulsed electrical power", f"{derived_pulse_power_kw:.2f} kW")
+    p3.metric("Per-cell duty cycle", f"{pulse_duty_cycle:.3f}%")
     p4.metric("Thermodynamic adequacy", f"{100*thermo_adequacy_ratio:.1f}%")
+
+    p5, p6 = st.columns(2)
+    p5.metric("Peak power per active cell", f"{pulse_peak_power_kw_per_cell:.1f} kW")
+    p6.metric("Active plasma cells", f"{active_cells}")
 
     st.markdown(
         f"""
@@ -396,6 +527,19 @@ if plasma_mode == "Pulsed plasma":
         <b>{derived_pulse_power_kw:.2f} kW average electrical power</b>.<br>
         At the current modeled H₂ production this corresponds to
         <b>{effective_plasma_sei:.2f} kWh/kg H₂</b>.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="horg-note">
+        <b>Frequency sensitivity:</b><br>
+        With pulse energy fixed at <b>{pulse_energy_mj:.1f} mJ</b> and
+        <b>{active_cells}</b> active cells, every +1 kHz increases average
+        plasma electrical power by approximately
+        <b>{pulse_energy_mj * active_cells / 1000.0:.3f} kW</b>.
         </div>
         """,
         unsafe_allow_html=True,
@@ -1001,6 +1145,203 @@ with st.expander("Ideal-floor cross-check for the selected target"):
         """
     )
 
+
+st.subheader("Gasoline + Water / Steam-Assisted Comparison")
+
+st.caption(
+    "Water and gasoline are modeled as separate feeds mixed after vaporization. "
+    "The water does not remain a liquid blend in the gasoline tank."
+)
+
+s1, s2, s3, s4 = st.columns(4)
+
+s1.metric(
+    "Steam-route gasoline",
+    f"{steam_fuel_l_h:.1f} L/h",
+    f"{steam_fuel_kg_h:.1f} kg/h",
+)
+
+s2.metric(
+    "Make-up water",
+    f"{steam_water_makeup_l_h:.1f} L/h",
+)
+
+s3.metric(
+    "H₂ to engine",
+    f"{steam_h2_to_engine_kg_h:.2f} kg/h",
+)
+
+s4.metric(
+    "Steam-route net shaft",
+    f"{steam_net_shaft_kw:.1f} kW",
+)
+
+s5, s6, s7, s8 = st.columns(4)
+
+s5.metric(
+    "Ideal H₂ yield from fuel",
+    f"{steam_h2_yield_kg_per_kg_fuel:.3f} kg/kg",
+)
+
+s6.metric(
+    "Process-energy input",
+    f"{steam_process_energy:.1f} kWh/kg H₂",
+)
+
+s7.metric(
+    "Reaction-enthalpy reference",
+    f"{steam_reaction_floor_kwh_per_kg_h2:.2f} kWh/kg H₂",
+)
+
+if steam_route == "Steam reforming + WGS":
+    s8.metric(
+        "CO₂ produced in route",
+        f"{steam_co2_kg_h:.1f} kg/h",
+    )
+else:
+    s8.metric(
+        "CO produced in syngas",
+        f"{steam_co_kg_h:.1f} kg/h",
+    )
+
+st.dataframe(
+    {
+        "Metric": [
+            "Gross H₂-engine shaft",
+            "Net shaft after process burden",
+            "Gasoline flow",
+            "Make-up water",
+            "H₂ to engine",
+            "Fuel-to-net-shaft efficiency",
+            "Carbon pathway",
+        ],
+        "Conventional gasoline ICE": [
+            f"{gross_engine_kw:.1f} kW",
+            f"{gross_engine_kw:.1f} kW",
+            f"{conv_same_gross_fuel_l_h:.2f} L/h",
+            "0 L/h",
+            "0 kg/h",
+            f"{100*conventional_eff:.1f}%",
+            f"{conv_same_gross_co2_kg_h:.2f} kg/h CO₂",
+        ],
+        "Dry HPRS carbon-retention": [
+            f"{gross_engine_kw:.1f} kW",
+            f"{net_shaft_kw:.1f} kW",
+            f"{fuel_l_h:.2f} L/h",
+            "0 L/h",
+            f"{h2_to_engine_kg_h:.2f} kg/h",
+            f"{100*hprs_net_eff:.1f}%",
+            f"{carbon_captured_kg_h:.2f} kg/h solid C captured",
+        ],
+        "Gasoline + steam route": [
+            f"{gross_engine_kw:.1f} kW",
+            f"{steam_net_shaft_kw:.1f} kW",
+            f"{steam_fuel_l_h:.2f} L/h",
+            f"{steam_water_makeup_l_h:.2f} L/h",
+            f"{steam_h2_to_engine_kg_h:.2f} kg/h",
+            f"{100*steam_net_eff:.1f}%",
+            (
+                f"{steam_co2_kg_h:.2f} kg/h CO₂"
+                if steam_route == "Steam reforming + WGS"
+                else f"{steam_co_kg_h:.2f} kg/h CO in syngas"
+            ),
+        ],
+    },
+    use_container_width=True,
+    hide_index=True,
+)
+
+st.subheader("Operating Cost Comparison")
+
+st.caption(
+    "Costs are scenario estimates using the editable prices in the sidebar. "
+    "Two HPRS cost views are shown: onboard fuel/water only, and a second view "
+    "that prices the remaining process electricity as externally purchased power."
+)
+
+cost1, cost2, cost3 = st.columns(3)
+
+cost1.metric(
+    "Conventional gasoline",
+    f"CHF {conventional_fuel_cost_chf_h:.2f}/h",
+    f"CHF {conventional_cost_per_kwh_shaft:.3f}/kWh shaft",
+)
+
+cost2.metric(
+    "Dry HPRS fuel only",
+    f"CHF {dry_hprs_fuel_cost_chf_h:.2f}/h",
+    (
+        f"CHF {dry_hprs_fuel_cost_per_net_kwh:.3f}/kWh net"
+        if math.isfinite(dry_hprs_fuel_cost_per_net_kwh)
+        else "No positive net shaft"
+    ),
+)
+
+cost3.metric(
+    "Steam route fuel + water",
+    f"CHF {(steam_fuel_cost_chf_h + steam_water_cost_chf_h):.2f}/h",
+    (
+        f"CHF {steam_fuel_water_cost_per_net_kwh:.3f}/kWh net"
+        if math.isfinite(steam_fuel_water_cost_per_net_kwh)
+        else "No positive net shaft"
+    ),
+)
+
+ec1, ec2 = st.columns(2)
+
+ec1.metric(
+    "Dry HPRS incl. priced external electricity",
+    f"CHF {dry_hprs_cost_external_power_chf_h:.2f}/h",
+    (
+        f"CHF {dry_hprs_external_cost_per_net_kwh:.3f}/kWh net"
+        if math.isfinite(dry_hprs_external_cost_per_net_kwh)
+        else "No positive net shaft"
+    ),
+)
+
+ec2.metric(
+    "Steam route incl. priced external process energy",
+    f"CHF {steam_cost_external_power_chf_h:.2f}/h",
+    (
+        f"CHF {steam_external_cost_per_net_kwh:.3f}/kWh net"
+        if math.isfinite(steam_external_cost_per_net_kwh)
+        else "No positive net shaft"
+    ),
+)
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Steam-route chemistry in the selected model:</b><br>
+    {
+        "C₈H₁₈ + 16 H₂O → 8 CO₂ + 25 H₂"
+        if steam_route == "Steam reforming + WGS"
+        else "C₈H₁₈ + 8 H₂O → 8 CO + 17 H₂"
+    }<br><br>
+    Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
+    Stoichiometric gross water feed:
+    <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
+    The reaction-enthalpy reference shown above does not include all real
+    steam generation, heat-transfer, compression, separation or auxiliary losses.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+if steam_route == "Steam reforming + WGS":
+    st.warning(
+        "The steam + WGS route increases hydrogen yield because part of the hydrogen "
+        "comes from water, but it converts the fuel carbon primarily to CO₂. "
+        "It is therefore not a solid-carbon-retention pathway unless a separate CO₂ "
+        "capture/conversion stage is added."
+    )
+else:
+    st.warning(
+        "The syngas route avoids full conversion to CO₂ in this simplified reaction, "
+        "but produces substantial CO. CO is toxic and must be shifted, oxidized, "
+        "separated or otherwise handled before any vehicle exhaust claim can be made."
+    )
+
 st.subheader("Conventional Engine Benchmark")
 st.caption("Same fuel reference. Same engine-scale comparison. Different carbon pathway.")
 
@@ -1114,6 +1455,21 @@ with st.expander("Model basis and references"):
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
+        **Steam-assisted comparison**
+
+        Two idealized n-octane references are available:
+
+        `C8H18 + 8 H2O -> 8 CO + 17 H2`
+
+        and, after complete water-gas shift:
+
+        `C8H18 + 16 H2O -> 8 CO2 + 25 H2`
+
+        The steam route increases hydrogen yield because water supplies additional
+        hydrogen atoms. In the complete-WGS case, however, the fuel carbon becomes
+        CO2 rather than retained solid carbon. The process-energy input and heat
+        recovery are editable scenario assumptions.
+
         **Pulsed-plasma interpretation**  
 `P_avg = energy_per_pulse × pulse_frequency × active_cells`  
 Pulse width is used to estimate instantaneous peak power and electrical duty cycle. These values are research controls, not validated automotive reactor specifications.
@@ -1123,4 +1479,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.2 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.4 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
