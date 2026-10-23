@@ -90,7 +90,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5.1</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -1177,28 +1177,34 @@ st.markdown(
 )
 
 with st.expander("Ideal-floor cross-check for the selected target"):
+    gross_floor_display = (
+        f"{required_gross_engine_floor_kw:.1f} kW"
+        if math.isfinite(required_gross_engine_floor_kw)
+        else "Not finite"
+    )
+
+    engine_eff_floor_display = (
+        f"{100 * required_engine_eff_at_floor:.1f}%"
+        if math.isfinite(required_engine_eff_at_floor)
+        else "Not finite"
+    )
+
+    recovery_floor_display = (
+        f"{100 * required_recovery_offset_at_floor:.1f}%"
+        if math.isfinite(required_recovery_offset_at_floor)
+        else "Not finite"
+    )
+
     st.markdown(
         f"""
         If the plasma specific electricity were exactly the ideal
         **{THERMO_MIN_KWH_PER_KG_H2:.2f} kWh/kg H₂** floor:
 
-        - gross H₂-engine power needed: **{
-            required_gross_engine_floor_kw:.1f
-            if math.isfinite(required_gross_engine_floor_kw)
-            else float("nan")
-        } kW**
+        - gross H₂-engine power needed: **{gross_floor_display}**
         - H₂-engine efficiency needed at the current gross power:
-          **{
-            100*required_engine_eff_at_floor:.1f
-            if math.isfinite(required_engine_eff_at_floor)
-            else float("nan")
-        }%**
+          **{engine_eff_floor_display}**
         - recovered-energy offset needed at the current gross power:
-          **{
-            100*required_recovery_offset_at_floor:.1f
-            if math.isfinite(required_recovery_offset_at_floor)
-            else float("nan")
-        }%**
+          **{recovery_floor_display}**
 
         These are idealized model boundaries, not predictions of achievable
         reactor, engine or heat-recovery hardware.
@@ -1539,4 +1545,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.5 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.5.1 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
