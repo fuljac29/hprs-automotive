@@ -66,6 +66,19 @@ STEAM_WGS_REACTION_KWH_PER_KG_H2 = (
     STEAM_WGS_REACTION_KJ_PER_MOL / 3600.0 / OCTANE_MOLAR_KG
 ) / H2_KG_PER_KG_FUEL_STEAM_WGS
 
+# HPRS-W water-splitting reference: 2 H2O -> 2 H2 + O2
+WATER_MOLAR = 18.01528
+O2_MOLAR = 31.998
+WATER_KG_PER_KG_H2_STOICH = WATER_MOLAR / H2_MOLAR
+O2_KG_PER_KG_H2_STOICH = O2_MOLAR / (2.0 * H2_MOLAR)
+
+# Public technology benchmarks used only as external reference guideposts.
+# U.S. DOE 2026 system targets: PEM ~51 kWh_e/kg H2; high-temperature
+# electrolysis ~36 kWh_e/kg H2 and ~44 kWh/kg H2 total energy.
+DOE_PEM_2026_SYSTEM_KWH_KG_H2 = 51.0
+DOE_HTE_2026_ELECTRIC_KWH_KG_H2 = 36.0
+DOE_HTE_2026_TOTAL_KWH_KG_H2 = 44.0
+
 st.markdown(
     """
     <style>
@@ -90,7 +103,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.6</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.7</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -103,6 +116,7 @@ st.markdown(
       <span class="horg-chip">Conventional ICE benchmark</span>
       <span class="horg-chip">Pulsed plasma control</span>
       <span class="horg-chip">Same-net-power normalization</span>
+      <span class="horg-chip">HPRS-W plasma water splitting</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -144,15 +158,25 @@ st.markdown(
         </p>
       </div>
 
+      <div class="horg-path-card">
+        <h4>4 · HPRS-W plasma water splitting</h4>
+        <p>
+          Superheated steam + argon enter a plasma core, followed by
+          <strong>ion steering, rapid quench, H₂/O₂ separation, heat recovery
+          and steam recirculation</strong>. This pathway uses no gasoline.
+        </p>
+      </div>
+
     </div>
     """,
     unsafe_allow_html=True,
 )
 
 st.info(
-    "Three hypotheses are compared in V2.5.2: conventional gasoline, dry HPRS "
-    "carbon-retention, and gasoline + water/steam. Water and gasoline are modeled "
-    "as separate feeds, not as a stable liquid blend in one tank."
+    "Four pathways are compared in V2.7: conventional gasoline, dry HPRS "
+    "carbon-retention, gasoline + water/steam, and HPRS-W plasma water splitting. "
+    "HPRS-W is an electricity/heat-to-hydrogen pathway and is therefore evaluated "
+    "against electrolysis benchmarks as well as against shaft-power output."
 )
 
 with st.sidebar:
@@ -162,15 +186,16 @@ with st.sidebar:
     comparison_focus = st.radio(
         "Comparison focus",
         [
-            "Show all three pathways",
+            "Show all four pathways",
             "Conventional gasoline",
             "Dry HPRS carbon-retention",
             "Gasoline + water / steam",
+            "HPRS-W plasma water splitting",
         ],
         index=0,
         help=(
             "This selector is for presentation focus. Core calculations remain "
-            "available so the three pathways can still be compared."
+            "available so the four pathways can still be compared."
         ),
     )
 
@@ -198,8 +223,8 @@ with st.sidebar:
         value=50,
         step=5,
         help=(
-            "All three pathways are rescaled to deliver this same net mechanical "
-            "shaft power. This is the primary apples-to-apples comparison in V2.6."
+            "All four pathways are rescaled to deliver this same net mechanical "
+            "shaft power. This is the primary apples-to-apples comparison in V2.7."
         ),
     )
 
@@ -401,6 +426,105 @@ with st.sidebar:
     ) / 100.0
 
     st.divider()
+    st.subheader("HPRS-W plasma water splitting")
+    st.caption(
+        "Architecture based on the supplied HTPR-QS concept: steam preheat, argon mixing, "
+        "plasma dissociation, electric-field species steering, rapid quench, H₂/O₂ separation, "
+        "heat recovery and steam recirculation. Inputs are research assumptions."
+    )
+
+    hprsw_plasma_electricity = st.number_input(
+        "HPRS-W plasma-system electricity (kWh_e/kg gross H₂)",
+        min_value=20.0,
+        max_value=100.0,
+        value=50.0,
+        step=1.0,
+        help=(
+            "Gross electrical intensity of the HPRS-W plasma/separation system. "
+            "The supplied architecture shows a 45–55 kWh/kg H₂ example target; "
+            "this is not treated as validated performance."
+        ),
+    )
+
+    hprsw_steam_preheat = st.number_input(
+        "HPRS-W steam preheat demand (kWh_th/kg gross H₂)",
+        min_value=0.0,
+        max_value=30.0,
+        value=10.0,
+        step=0.5,
+        help=(
+            "Separate thermal demand for vaporization/superheat and reactor feed conditioning. "
+            "This is reported separately from plasma electricity."
+        ),
+    )
+
+    hprsw_heat_recovery = st.slider(
+        "HPRS-W heat recovery (%)",
+        0, 95, 50, 5,
+        help="Fraction of steam-preheat thermal demand supplied by recovered heat.",
+    ) / 100.0
+
+    hprsw_ion_separation_eff = st.slider(
+        "Ion/species separation efficiency (%)",
+        50, 100, 90, 1,
+        help=(
+            "Exploratory fraction of dissociated hydrogen-bearing species successfully routed "
+            "toward the H₂-rich stream before quench/purification."
+        ),
+    ) / 100.0
+
+    hprsw_quench_loss = st.slider(
+        "Quench/recombination H₂ loss (%)",
+        0, 40, 5, 1,
+        help="Exploratory loss caused by recombination or incomplete chemistry freezing during quench.",
+    ) / 100.0
+
+    hprsw_purification_recovery = st.slider(
+        "H₂ purification recovery (%)",
+        70, 100, 98, 1,
+        help="Fraction of H₂ entering the purification stage recovered as product H₂.",
+    ) / 100.0
+
+    hprsw_o2_recovery = st.slider(
+        "O₂ recovery (%)",
+        0, 100, 90, 5,
+        help="Fraction of theoretical oxygen coproduct recovered as a usable O₂-rich stream.",
+    ) / 100.0
+
+    hprsw_steam_excess = st.slider(
+        "Steam circulation / stoichiometric water (×)",
+        1.0, 3.0, 1.5, 0.1,
+        help=(
+            "Gross steam circulation relative to stoichiometric water consumption. "
+            "Only excess steam can be recycled; stoichiometric water is chemically consumed."
+        ),
+    )
+
+    hprsw_excess_steam_recycle = st.slider(
+        "Excess-steam recycle (%)",
+        0, 99, 90, 1,
+        help=(
+            "Recovery of steam above the stoichiometric amount. This does not reduce the "
+            "minimum water chemically consumed to make H₂."
+        ),
+    ) / 100.0
+
+    hprsw_argon_circulation = st.number_input(
+        "Argon circulation (kg Ar/kg gross H₂)",
+        min_value=0.0,
+        max_value=20.0,
+        value=1.0,
+        step=0.1,
+        help="Exploratory argon working-fluid circulation ratio for the plasma/mixing stage.",
+    )
+
+    hprsw_argon_recovery = st.slider(
+        "Argon recovery (%)",
+        0, 100, 99, 1,
+        help="Fraction of circulating argon recovered for reuse.",
+    ) / 100.0
+
+    st.divider()
     st.subheader("Operating-cost inputs")
 
     gasoline_price_chf_l = st.number_input(
@@ -442,6 +566,24 @@ with st.sidebar:
         value=2.0,
         step=0.5,
         help="Editable water-cost assumption.",
+    )
+
+    argon_price_chf_kg = st.number_input(
+        "Argon make-up price (CHF/kg)",
+        min_value=0.0,
+        max_value=20.0,
+        value=0.0,
+        step=0.1,
+        help="Optional scenario price. Default 0 avoids inventing an argon market value."
+    )
+
+    oxygen_value_chf_kg = st.number_input(
+        "Recovered O₂ value (CHF/kg)",
+        min_value=0.0,
+        max_value=5.0,
+        value=0.0,
+        step=0.05,
+        help="Optional coproduct credit. Default 0 keeps the comparison conservative."
     )
 
     fuel_density = st.number_input(
@@ -589,7 +731,7 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-# V2.6 separates thermal and electrical process energy.
+# V2.7 keeps steam-route thermal and electrical process energy separate.
 steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
     * steam_thermal_energy
@@ -724,7 +866,81 @@ steam_external_cost_per_net_kwh = (
 )
 
 # ============================================================
-# V2.6 SAME-NET-POWER NORMALIZATION
+# HPRS-W PLASMA WATER-SPLITTING MODEL
+# 2 H2O -> 2 H2 + O2
+# ============================================================
+
+hprsw_recovery_chain = (
+    hprsw_ion_separation_eff
+    * (1.0 - hprsw_quench_loss)
+    * hprsw_purification_recovery
+)
+
+# Current architecture diagnostic at the gross H2-engine scale.
+hprsw_h2_delivered_current_kg_h = h2_required_engine_kg_h
+hprsw_h2_gross_current_kg_h = (
+    hprsw_h2_delivered_current_kg_h / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+hprsw_electric_current_kw = (
+    hprsw_h2_gross_current_kg_h * hprsw_plasma_electricity
+)
+hprsw_thermal_gross_current_kw = (
+    hprsw_h2_gross_current_kg_h * hprsw_steam_preheat
+)
+hprsw_thermal_external_current_kw = (
+    hprsw_thermal_gross_current_kw * (1.0 - hprsw_heat_recovery)
+)
+
+# Stoichiometric water is consumed. Recycling applies only to steam circulated
+# above the stoichiometric requirement.
+hprsw_water_stoich_current_kg_h = (
+    hprsw_h2_gross_current_kg_h * WATER_KG_PER_KG_H2_STOICH
+)
+hprsw_water_circulation_current_kg_h = (
+    hprsw_water_stoich_current_kg_h * hprsw_steam_excess
+)
+hprsw_excess_water_current_kg_h = max(
+    hprsw_water_circulation_current_kg_h - hprsw_water_stoich_current_kg_h, 0.0
+)
+hprsw_water_makeup_current_kg_h = (
+    hprsw_water_stoich_current_kg_h
+    + hprsw_excess_water_current_kg_h * (1.0 - hprsw_excess_steam_recycle)
+)
+
+hprsw_o2_gross_current_kg_h = (
+    hprsw_h2_gross_current_kg_h * O2_KG_PER_KG_H2_STOICH
+)
+hprsw_o2_recovered_current_kg_h = (
+    hprsw_o2_gross_current_kg_h * hprsw_o2_recovery
+)
+
+hprsw_argon_circulation_current_kg_h = (
+    hprsw_h2_gross_current_kg_h * hprsw_argon_circulation
+)
+hprsw_argon_makeup_current_kg_h = (
+    hprsw_argon_circulation_current_kg_h * (1.0 - hprsw_argon_recovery)
+)
+
+# Closed-loop diagnostic: if H2 is used in an engine and the engine-driven
+# generator must power the same HPRS-W water splitter, the per-kg-H2 shaft
+# margin is normally negative at present electricity intensities.
+hprsw_shaft_per_kg_delivered_h2 = engine_eff * H2_LHV_KWH_KG
+hprsw_electricity_per_kg_delivered_h2 = (
+    hprsw_plasma_electricity / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+hprsw_equiv_shaft_burden_per_kg_delivered_h2 = (
+    hprsw_electricity_per_kg_delivered_h2 / generator_eff
+    if generator_eff > 0 else math.inf
+)
+hprsw_closed_loop_margin_kwh_per_kg = (
+    hprsw_shaft_per_kg_delivered_h2
+    - hprsw_equiv_shaft_burden_per_kg_delivered_h2
+)
+
+# ============================================================
+# V2.7 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
 # ============================================================
 
 comparison_net_kw = float(normalized_target_kw)
@@ -877,6 +1093,84 @@ else:
     norm_steam_co2_equiv_from_co_kg_h = math.inf
     norm_steam_cost_chf_h = math.inf
 
+# HPRS-W water splitting: external electricity/heat -> H2 -> H2 engine.
+# It contains no gasoline. External process electricity is an energy input, not
+# silently subtracted from engine shaft output in the main normalized comparison.
+norm_hprsw_h2_delivered_kg_h = (
+    comparison_net_kw / (engine_eff * H2_LHV_KWH_KG)
+    if engine_eff > 0 else math.inf
+)
+norm_hprsw_h2_gross_kg_h = (
+    norm_hprsw_h2_delivered_kg_h / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+norm_hprsw_electric_kw = (
+    norm_hprsw_h2_gross_kg_h * hprsw_plasma_electricity
+)
+norm_hprsw_thermal_gross_kw = (
+    norm_hprsw_h2_gross_kg_h * hprsw_steam_preheat
+)
+norm_hprsw_thermal_external_kw = (
+    norm_hprsw_thermal_gross_kw * (1.0 - hprsw_heat_recovery)
+)
+
+norm_hprsw_water_stoich_kg_h = (
+    norm_hprsw_h2_gross_kg_h * WATER_KG_PER_KG_H2_STOICH
+)
+norm_hprsw_water_circulation_kg_h = (
+    norm_hprsw_water_stoich_kg_h * hprsw_steam_excess
+)
+norm_hprsw_water_excess_kg_h = max(
+    norm_hprsw_water_circulation_kg_h - norm_hprsw_water_stoich_kg_h, 0.0
+)
+norm_hprsw_water_makeup_l_h = (
+    norm_hprsw_water_stoich_kg_h
+    + norm_hprsw_water_excess_kg_h * (1.0 - hprsw_excess_steam_recycle)
+)
+
+norm_hprsw_o2_recovered_kg_h = (
+    norm_hprsw_h2_gross_kg_h
+    * O2_KG_PER_KG_H2_STOICH
+    * hprsw_o2_recovery
+)
+norm_hprsw_argon_makeup_kg_h = (
+    norm_hprsw_h2_gross_kg_h
+    * hprsw_argon_circulation
+    * (1.0 - hprsw_argon_recovery)
+)
+
+norm_hprsw_water_cost_chf_h = (
+    norm_hprsw_water_makeup_l_h / 1000.0 * water_price_chf_m3
+)
+norm_hprsw_electric_cost_chf_h = (
+    norm_hprsw_electric_kw * electricity_price_chf_kwh
+)
+norm_hprsw_thermal_cost_chf_h = (
+    norm_hprsw_thermal_external_kw * thermal_energy_price_chf_kwh
+)
+norm_hprsw_argon_cost_chf_h = (
+    norm_hprsw_argon_makeup_kg_h * argon_price_chf_kg
+)
+norm_hprsw_o2_credit_chf_h = (
+    norm_hprsw_o2_recovered_kg_h * oxygen_value_chf_kg
+)
+norm_hprsw_cost_chf_h = max(
+    0.0,
+    norm_hprsw_electric_cost_chf_h
+    + norm_hprsw_thermal_cost_chf_h
+    + norm_hprsw_water_cost_chf_h
+    + norm_hprsw_argon_cost_chf_h
+    - norm_hprsw_o2_credit_chf_h
+)
+
+norm_hprsw_total_input_kw = (
+    norm_hprsw_electric_kw + norm_hprsw_thermal_external_kw
+)
+norm_hprsw_total_eff = (
+    comparison_net_kw / norm_hprsw_total_input_kw
+    if norm_hprsw_total_input_kw > 0 else 0.0
+)
+
 # Per-kWh-net indicators.
 def per_net(value):
     return value / comparison_net_kw if comparison_net_kw > 0 else math.inf
@@ -900,6 +1194,14 @@ norm_steam_water_l_per_kwh = per_net(norm_steam_water_makeup_l_h)
 norm_steam_electric_per_kwh = per_net(norm_steam_electrical_kw)
 norm_steam_thermal_external_per_kwh = per_net(norm_steam_thermal_external_kw)
 norm_steam_cost_per_kwh = per_net(norm_steam_cost_chf_h)
+
+norm_hprsw_h2_per_kwh = per_net(norm_hprsw_h2_delivered_kg_h)
+norm_hprsw_water_l_per_kwh = per_net(norm_hprsw_water_makeup_l_h)
+norm_hprsw_electric_per_kwh = per_net(norm_hprsw_electric_kw)
+norm_hprsw_thermal_external_per_kwh = per_net(norm_hprsw_thermal_external_kw)
+norm_hprsw_o2_per_kwh = per_net(norm_hprsw_o2_recovered_kg_h)
+norm_hprsw_argon_makeup_per_kwh = per_net(norm_hprsw_argon_makeup_kg_h)
+norm_hprsw_cost_per_kwh = per_net(norm_hprsw_cost_chf_h)
 
 if steam_route == "Steam reforming + WGS":
     norm_steam_carbon_metric = f"{per_net(norm_steam_co2_kg_h):.3f} kg CO₂/kWh net"
@@ -1764,14 +2066,63 @@ st.dataframe(
     hide_index=True,
 )
 
-st.subheader("V2.6 Scientific Comparison — Same Net Shaft Power")
+st.subheader("Hypothesis 4 — HPRS-W Plasma Water Splitting")
 
 st.caption(
-    f"All three pathways below are normalized to the same useful mechanical output: "
-    f"{comparison_net_kw:.0f} kW net shaft. This is the primary scientific comparison."
+    "HTPR-QS-inspired architecture from the supplied diagram: superheated steam, argon-assisted "
+    "plasma dissociation, electric-field species steering, rapid quench, H₂/O₂ separation, "
+    "heat recovery and steam recirculation. Values below are scenario assumptions, not validated reactor data."
 )
 
-n1, n2, n3 = st.columns(3)
+w1, w2, w3, w4 = st.columns(4)
+w1.metric("Plasma-system electricity", f"{hprsw_plasma_electricity:.1f} kWh_e/kg H₂")
+w2.metric("H₂ recovery chain", f"{100*hprsw_recovery_chain:.1f}%")
+w3.metric("Stoichiometric water", f"{WATER_KG_PER_KG_H2_STOICH:.2f} kg/kg H₂")
+w4.metric("O₂ coproduct (ideal)", f"{O2_KG_PER_KG_H2_STOICH:.2f} kg/kg H₂")
+
+w5, w6, w7, w8 = st.columns(4)
+w5.metric("External steam heat", f"{hprsw_steam_preheat*(1-hprsw_heat_recovery):.1f} kWh_th/kg H₂ gross")
+w6.metric("DOE PEM 2026 system target", f"{DOE_PEM_2026_SYSTEM_KWH_KG_H2:.0f} kWh_e/kg H₂")
+w7.metric("DOE HTE 2026 electrical target", f"{DOE_HTE_2026_ELECTRIC_KWH_KG_H2:.0f} kWh_e/kg H₂")
+w8.metric("DOE HTE 2026 total-energy target", f"{DOE_HTE_2026_TOTAL_KWH_KG_H2:.0f} kWh/kg H₂")
+
+if hprsw_closed_loop_margin_kwh_per_kg < 0:
+    st.error(
+        f"Closed-loop diagnostic: each kg of H₂ delivered to the engine produces about "
+        f"{hprsw_shaft_per_kg_delivered_h2:.1f} kWh shaft at the selected engine efficiency, "
+        f"but powering HPRS-W from an engine-driven generator would require about "
+        f"{hprsw_equiv_shaft_burden_per_kg_delivered_h2:.1f} kWh shaft-equivalent per kg delivered H₂. "
+        f"Margin = {hprsw_closed_loop_margin_kwh_per_kg:.1f} kWh/kg. The self-powered loop does not close."
+    )
+else:
+    st.warning(
+        "The simplified closed-loop arithmetic is non-negative, but this would still require full transient, "
+        "thermal, separation, safety and durability validation before any self-sustaining claim."
+    )
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Water accounting:</b> 2 H₂O → 2 H₂ + O₂ consumes at least
+    <b>{WATER_KG_PER_KG_H2_STOICH:.2f} kg H₂O/kg gross H₂</b>.
+    Steam recirculation only reduces the make-up associated with excess circulating steam;
+    it cannot eliminate the stoichiometric water consumed in the reaction.<br><br>
+    <b>Electric-field boundary:</b> the model treats ion/species separation efficiency as an
+    experimental parameter. A DC field can steer charged species; it does not directly separate
+    neutral H₂ and O₂ after recombination.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.subheader("V2.7 Scientific Comparison — Same Net Shaft Power")
+
+st.caption(
+    f"All four pathways below are normalized to the same useful mechanical output: "
+    f"{comparison_net_kw:.0f} kW net shaft. HPRS-W uses external electricity/heat rather than gasoline."
+)
+
+n1, n2, n3, n4 = st.columns(4)
 n1.metric(
     "Conventional gasoline",
     f"{norm_conv_l_per_kwh:.3f} L/kWh net",
@@ -1791,6 +2142,12 @@ n3.metric(
         f"{norm_steam_l_per_kwh:.3f} L/kWh net"
         if math.isfinite(norm_steam_l_per_kwh) else "Not self-sustaining"
     ),
+    delta=None,
+)
+
+n4.metric(
+    "HPRS-W water splitting",
+    f"{norm_hprsw_electric_per_kwh:.2f} kWh_e/kWh net",
     delta=None,
 )
 
@@ -1837,7 +2194,7 @@ st.dataframe(
                 f"{norm_dry_electric_per_kwh:.3f} kWh_e/kWh net"
                 if math.isfinite(norm_dry_electric_per_kwh) else "—"
             ),
-            "Not modeled in V2.6",
+            "Not modeled in this route",
             (
                 f"{100*norm_dry_total_eff:.1f}%"
                 if math.isfinite(norm_dry_fuel_kg_h) else "—"
@@ -1897,6 +2254,19 @@ st.dataframe(
                 if math.isfinite(norm_steam_cost_per_kwh) else "—"
             ),
         ],
+        "HPRS-W plasma water splitting": [
+            f"{comparison_net_kw:.0f} kW net",
+            "0 L/kWh net",
+            f"{norm_hprsw_h2_per_kwh:.4f} kg/kWh net",
+            f"{norm_hprsw_water_l_per_kwh:.3f} L/kWh net",
+            f"{norm_hprsw_electric_per_kwh:.3f} kWh_e/kWh net",
+            f"{norm_hprsw_thermal_external_per_kwh:.3f} kWh_th/kWh net",
+            "N/A — no gasoline fuel",
+            f"{100*norm_hprsw_total_eff:.1f}%",
+            "0 kg direct CO₂/kWh net (electricity lifecycle not modeled)",
+            "0 kg solid C/kWh net",
+            f"CHF {norm_hprsw_cost_per_kwh:.3f}/kWh net",
+        ],
     },
     width="stretch",
     hide_index=True,
@@ -1905,7 +2275,7 @@ st.dataframe(
 st.markdown(
     f"""
     <div class="horg-note">
-    <b>How to read V2.6:</b><br>
+    <b>How to read V2.7:</b><br>
     • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
     • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
       The displayed electrical value is the remaining plasma electricity after the selected
@@ -1915,6 +2285,9 @@ st.markdown(
       total-energy efficiency, and it affects cost only if a non-zero thermal-energy price is entered.<br>
     • In pulsed-plasma mode, the normalized Dry-HPRS result assumes the current effective
       kWh/kg H₂ scales locally with hydrogen throughput; that scaling must be validated experimentally.
+    • HPRS-W assumes externally supplied electricity/heat. Direct CO₂ is zero in the modeled reaction,
+      but lifecycle emissions depend on how that electricity and heat are produced. Its O₂ coproduct
+      is reported separately and receives no economic credit unless a non-zero O₂ value is entered.<br>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1938,6 +2311,11 @@ with st.expander("Current operating-point costs (non-normalized)"):
         st.write(
             f"Steam supplemental thermal cost: CHF {steam_thermal_cost_chf_h:.2f}/h."
         )
+    st.write(
+        f"HPRS-W normalized external electricity at {comparison_net_kw:.0f} kW net: "
+        f"{norm_hprsw_electric_kw:.1f} kW_e; external process heat: "
+        f"{norm_hprsw_thermal_external_kw:.1f} kW_th."
+    )
 
 st.markdown(
     f"""
@@ -1951,7 +2329,7 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The thermal and electrical process inputs are separated in V2.6. The reaction-enthalpy
+    The thermal and electrical process inputs are separated in V2.7. The reaction-enthalpy
     reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
@@ -2078,16 +2456,16 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V2.5.2 design diagnosis varies one lever at a time and solves the
+        The V2.7 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
-        **V2.6 same-net-power normalization**
+        **V2.7 four-pathway same-net-power normalization**
 
-        The primary comparison rescales all three pathways to the same selected net shaft power.  
+        The primary comparison rescales all four pathways to the same selected net shaft power.  
         Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
         Steam-route thermal demand and electrical auxiliaries are reported separately.  
         Unrecovered process heat is included in total-energy efficiency but is priced only when a thermal-energy price is entered.
@@ -2116,4 +2494,39 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.6 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+with st.expander("HPRS-W model basis and benchmark references"):
+    st.markdown(
+        f"""
+        **Architecture source used for this model**
+
+        The supplied HTPR-QS diagram proposes: steam preheat/vaporization, argon mixing,
+        a high-temperature plasma core, DC-field species separation, rapid quench,
+        H₂/O₂ separation, heat recovery and steam recirculation. The diagram's stated
+        performance values are treated as **targets/assumptions**, not measured validation data.
+
+        **Stoichiometry**
+
+        `2 H2O -> 2 H2 + O2`
+
+        - minimum water consumed: **{WATER_KG_PER_KG_H2_STOICH:.3f} kg/kg H₂**
+        - ideal oxygen coproduct: **{O2_KG_PER_KG_H2_STOICH:.3f} kg/kg H₂**
+
+        **External benchmark guideposts (U.S. DOE 2026 system targets)**
+
+        - PEM electrolysis: **{DOE_PEM_2026_SYSTEM_KWH_KG_H2:.0f} kWh_e/kg H₂** system energy
+        - high-temperature electrolysis: **{DOE_HTE_2026_ELECTRIC_KWH_KG_H2:.0f} kWh_e/kg H₂** electrical
+        - high-temperature electrolysis: **{DOE_HTE_2026_TOTAL_KWH_KG_H2:.0f} kWh/kg H₂** total energy
+
+        References:
+        - https://www.energy.gov/cmei/fuels/technical-targets-proton-exchange-membrane-electrolysis
+        - https://stage.energy.gov/cmei/fuels/technical-targets-high-temperature-electrolysis
+
+        **Boundary**
+
+        The model does not yet solve plasma kinetics, electrode erosion, charged-species residence time,
+        E-field strength in V/m, quench chemistry, H₂/O₂ flammability management, membrane selectivity,
+        argon purity, compression, startup energy or transient vehicle dynamics.
+        """
+    )
+
+st.caption("HPRS Automotive V2.7 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
