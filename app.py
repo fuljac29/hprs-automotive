@@ -72,6 +72,36 @@ O2_MOLAR = 31.998
 WATER_KG_PER_KG_H2_STOICH = WATER_MOLAR / H2_MOLAR
 O2_KG_PER_KG_H2_STOICH = O2_MOLAR / (2.0 * H2_MOLAR)
 
+# V2.8 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
+# NIST-JANAF water(l): Delta_f H deg = -285.830 kJ/mol,
+# Delta_f G deg = -237.141 kJ/mol. For H2O(l) -> H2(g) + 0.5 O2(g),
+# the water-splitting reaction therefore requires +285.830 kJ/mol enthalpy
+# and +237.141 kJ/mol reversible Gibbs work under these standard conditions.
+FARADAY_C_MOL = 96485.33212
+BOLTZMANN_J_K = 1.380649e-23
+GAS_CONSTANT_J_MOL_K = 8.314462618
+ARGON_MOLAR_KG = 39.948 / 1000.0
+WATER_SPLIT_DG_KJ_PER_MOL_H2 = 237.141
+WATER_SPLIT_DH_KJ_PER_MOL_H2 = 285.830
+WATER_SPLIT_TDS_KJ_PER_MOL_H2 = (
+    WATER_SPLIT_DH_KJ_PER_MOL_H2 - WATER_SPLIT_DG_KJ_PER_MOL_H2
+)
+WATER_SPLIT_REV_KWH_PER_KG_H2 = (
+    WATER_SPLIT_DG_KJ_PER_MOL_H2 / 3600.0
+) / (H2_MOLAR / 1000.0)
+WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2 = (
+    WATER_SPLIT_DH_KJ_PER_MOL_H2 / 3600.0
+) / (H2_MOLAR / 1000.0)
+WATER_SPLIT_ENTROPIC_HEAT_KWH_PER_KG_H2 = (
+    WATER_SPLIT_TDS_KJ_PER_MOL_H2 / 3600.0
+) / (H2_MOLAR / 1000.0)
+WATER_SPLIT_REV_VOLTAGE_V = (
+    WATER_SPLIT_DG_KJ_PER_MOL_H2 * 1000.0 / (2.0 * FARADAY_C_MOL)
+)
+WATER_SPLIT_THERMONEUTRAL_VOLTAGE_V = (
+    WATER_SPLIT_DH_KJ_PER_MOL_H2 * 1000.0 / (2.0 * FARADAY_C_MOL)
+)
+
 # Public technology benchmarks used only as external reference guideposts.
 # U.S. DOE 2026 system targets: PEM ~51 kWh_e/kg H2; high-temperature
 # electrolysis ~36 kWh_e/kg H2 and ~44 kWh/kg H2 total energy.
@@ -95,6 +125,7 @@ st.markdown(
     .horg-note{padding:.9rem 1rem;border-radius:14px;background:#f7fbfd;border:1px solid var(--line);color:var(--muted);line-height:1.55;font-size:.9rem;}
     div[data-testid="stMetric"]{background:#fff;border:1px solid var(--line);padding:.65rem .8rem;border-radius:14px;}
     div[data-testid="stMetricLabel"]{color:#6b8294;}
+    div[data-testid="stMetricValue"]{font-size:1.62rem;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -103,7 +134,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.7</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.8</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -173,7 +204,7 @@ st.markdown(
 )
 
 st.info(
-    "Four pathways are compared in V2.7: conventional gasoline, dry HPRS "
+    "Four pathways are compared in V2.8: conventional gasoline, dry HPRS "
     "carbon-retention, gasoline + water/steam, and HPRS-W plasma water splitting. "
     "HPRS-W is an electricity/heat-to-hydrogen pathway and is therefore evaluated "
     "against electrolysis benchmarks as well as against shaft-power output."
@@ -224,7 +255,7 @@ with st.sidebar:
         step=5,
         help=(
             "All four pathways are rescaled to deliver this same net mechanical "
-            "shaft power. This is the primary apples-to-apples comparison in V2.7."
+            "shaft power. This is the primary apples-to-apples comparison in V2.8."
         ),
     )
 
@@ -525,6 +556,174 @@ with st.sidebar:
     ) / 100.0
 
     st.divider()
+    st.subheader("V2.8 advanced theory — HPRS-W")
+    st.caption(
+        "Diagnostic-only physics inputs. These do not represent measured HydrogenOrg reactor data."
+    )
+
+    with st.expander("Thermodynamics, E/N, quench & sizing", expanded=False):
+        hprsw_ambient_temp_c = st.number_input(
+            "Reference ambient temperature (°C)",
+            min_value=-20.0,
+            max_value=80.0,
+            value=25.0,
+            step=5.0,
+            help="Reference environment used in the simple heat-exergy factor.",
+        )
+
+        hprsw_heat_source_temp_c = st.number_input(
+            "External heat-source temperature (°C)",
+            min_value=50.0,
+            max_value=1500.0,
+            value=500.0,
+            step=25.0,
+            help=(
+                "Used only to estimate the maximum exergy fraction of externally supplied heat "
+                "through 1 - T0/Th. It is not a heat-exchanger model."
+            ),
+        )
+
+        st.markdown("##### Electric-field / ion-steering diagnostic")
+        hprsw_field_voltage_v = st.number_input(
+            "Applied separation-zone voltage (V)",
+            min_value=10.0,
+            max_value=50000.0,
+            value=500.0,
+            step=10.0,
+        )
+        hprsw_electrode_gap_mm = st.number_input(
+            "Electrode gap (mm)",
+            min_value=0.1,
+            max_value=200.0,
+            value=10.0,
+            step=0.5,
+        )
+        hprsw_separation_temp_c = st.number_input(
+            "Separation-zone gas temperature (°C)",
+            min_value=50.0,
+            max_value=5000.0,
+            value=1200.0,
+            step=50.0,
+        )
+        hprsw_pressure_bar = st.number_input(
+            "Separation-zone pressure (bar abs)",
+            min_value=0.05,
+            max_value=20.0,
+            value=1.0,
+            step=0.05,
+            format="%.2f",
+        )
+        hprsw_ion_mobility_cm2_vs = st.number_input(
+            "Effective ion mobility (cm²/V·s)",
+            min_value=0.01,
+            max_value=100.0,
+            value=2.0,
+            step=0.1,
+            help=(
+                "User-supplied effective mobility at the modeled gas state. Real mobilities depend "
+                "on species, E/N, temperature, pressure and composition."
+            ),
+        )
+        hprsw_separation_distance_mm = st.number_input(
+            "Required lateral separation distance (mm)",
+            min_value=0.1,
+            max_value=100.0,
+            value=5.0,
+            step=0.5,
+        )
+        hprsw_residence_time_ms = st.number_input(
+            "Charged-species residence time (ms)",
+            min_value=0.01,
+            max_value=1000.0,
+            value=5.0,
+            step=0.5,
+        )
+
+        st.markdown("##### Quench / recombination diagnostic")
+        hprsw_plasma_temp_c = st.number_input(
+            "Plasma-core temperature (°C)",
+            min_value=500.0,
+            max_value=10000.0,
+            value=3500.0,
+            step=100.0,
+        )
+        hprsw_quench_outlet_temp_c = st.number_input(
+            "Quench outlet temperature (°C)",
+            min_value=20.0,
+            max_value=2000.0,
+            value=300.0,
+            step=25.0,
+        )
+        hprsw_quench_time_ms = st.number_input(
+            "Quench time (ms)",
+            min_value=0.01,
+            max_value=100.0,
+            value=5.0,
+            step=0.5,
+        )
+        hprsw_recomb_tau_ms = st.number_input(
+            "Effective first-order recombination time (ms)",
+            min_value=0.01,
+            max_value=5000.0,
+            value=100.0,
+            step=5.0,
+            help=(
+                "Exploratory lumped timescale, not a plasma-kinetics solution. It is used only "
+                "for the optional exp(-t/tau) survival estimate."
+            ),
+        )
+        hprsw_quench_loss_model = st.radio(
+            "Quench-loss treatment",
+            [
+                "Use direct scenario loss",
+                "Use first-order timescale estimate",
+            ],
+            index=0,
+            help=(
+                "The default preserves the direct scenario-loss slider. The optional timescale mode "
+                "sets H2 survival to exp(-t_quench/tau_recomb)."
+            ),
+        )
+
+        st.markdown("##### First-order reactor sizing")
+        hprsw_reactor_aspect_ratio = st.number_input(
+            "Equivalent core length / diameter",
+            min_value=0.2,
+            max_value=20.0,
+            value=3.0,
+            step=0.2,
+        )
+        hprsw_plasma_power_share = st.slider(
+            "Plasma-core share of HPRS-W electricity (%)",
+            min_value=1,
+            max_value=100,
+            value=70,
+            step=1,
+            help=(
+                "Separates estimated core electrical power from total HPRS-W system electricity "
+                "for the power-density proxy."
+            ),
+        ) / 100.0
+        hprsw_effective_hot_gas_cp = st.number_input(
+            "Effective hot-stream Cp (kJ/kg·K)",
+            min_value=0.2,
+            max_value=20.0,
+            value=2.0,
+            step=0.1,
+            help=(
+                "Lumped sensible-heat approximation only. High-temperature dissociation and "
+                "composition-dependent heat capacities are not solved."
+            ),
+        )
+        hprsw_coolant_delta_t_c = st.number_input(
+            "Coolant allowable temperature rise (K)",
+            min_value=1.0,
+            max_value=150.0,
+            value=30.0,
+            step=5.0,
+        )
+
+    st.divider()
     st.subheader("Operating-cost inputs")
 
     gasoline_price_chf_l = st.number_input(
@@ -731,7 +930,7 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-# V2.7 keeps steam-route thermal and electrical process energy separate.
+# V2.8 keeps steam-route thermal and electrical process energy separate.
 steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
     * steam_thermal_energy
@@ -870,9 +1069,22 @@ steam_external_cost_per_net_kwh = (
 # 2 H2O -> 2 H2 + O2
 # ============================================================
 
+# Optional first-order quench survival diagnostic.
+hprsw_quench_time_s = max(hprsw_quench_time_ms * 1e-3, 1e-12)
+hprsw_recomb_tau_s = max(hprsw_recomb_tau_ms * 1e-3, 1e-12)
+hprsw_quench_survival_timescale = math.exp(
+    -hprsw_quench_time_s / hprsw_recomb_tau_s
+)
+hprsw_quench_loss_timescale = 1.0 - hprsw_quench_survival_timescale
+hprsw_quench_loss_effective = (
+    hprsw_quench_loss
+    if hprsw_quench_loss_model == "Use direct scenario loss"
+    else hprsw_quench_loss_timescale
+)
+
 hprsw_recovery_chain = (
     hprsw_ion_separation_eff
-    * (1.0 - hprsw_quench_loss)
+    * (1.0 - hprsw_quench_loss_effective)
     * hprsw_purification_recovery
 )
 
@@ -940,7 +1152,7 @@ hprsw_closed_loop_margin_kwh_per_kg = (
 )
 
 # ============================================================
-# V2.7 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
+# V2.8 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
 # ============================================================
 
 comparison_net_kw = float(normalized_target_kw)
@@ -1170,6 +1382,226 @@ norm_hprsw_total_eff = (
     comparison_net_kw / norm_hprsw_total_input_kw
     if norm_hprsw_total_input_kw > 0 else 0.0
 )
+
+# ============================================================
+# V2.8 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
+# ============================================================
+
+# 1) Standard-state water-splitting thermodynamics and simple exergy view.
+hprsw_external_heat_per_gross_h2 = (
+    hprsw_steam_preheat * (1.0 - hprsw_heat_recovery)
+)
+hprsw_total_external_energy_per_gross_h2 = (
+    hprsw_plasma_electricity + hprsw_external_heat_per_gross_h2
+)
+hprsw_total_external_energy_per_delivered_h2 = (
+    hprsw_total_external_energy_per_gross_h2 / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+hprsw_electricity_per_delivered_h2_advanced = (
+    hprsw_plasma_electricity / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+
+hprsw_t0_k = hprsw_ambient_temp_c + 273.15
+hprsw_heat_source_k = hprsw_heat_source_temp_c + 273.15
+hprsw_heat_exergy_factor = (
+    max(0.0, min(1.0, 1.0 - hprsw_t0_k / hprsw_heat_source_k))
+    if hprsw_heat_source_k > hprsw_t0_k else 0.0
+)
+hprsw_external_heat_exergy_per_gross_h2 = (
+    hprsw_external_heat_per_gross_h2 * hprsw_heat_exergy_factor
+)
+hprsw_external_exergy_per_gross_h2 = (
+    hprsw_plasma_electricity + hprsw_external_heat_exergy_per_gross_h2
+)
+hprsw_external_exergy_per_delivered_h2 = (
+    hprsw_external_exergy_per_gross_h2 / hprsw_recovery_chain
+    if hprsw_recovery_chain > 0 else math.inf
+)
+hprsw_second_law_eff = (
+    WATER_SPLIT_REV_KWH_PER_KG_H2 / hprsw_external_exergy_per_delivered_h2
+    if hprsw_external_exergy_per_delivered_h2 > 0 else 0.0
+)
+hprsw_hhv_energy_eff = (
+    WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2
+    / hprsw_total_external_energy_per_delivered_h2
+    if hprsw_total_external_energy_per_delivered_h2 > 0 else 0.0
+)
+hprsw_standard_energy_margin_gross = (
+    hprsw_total_external_energy_per_gross_h2
+    - WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2
+)
+hprsw_standard_exergy_margin_gross = (
+    hprsw_external_exergy_per_gross_h2
+    - WATER_SPLIT_REV_KWH_PER_KG_H2
+)
+
+# 2) Electric field and reduced field E/N.
+hprsw_gap_m = max(hprsw_electrode_gap_mm * 1e-3, 1e-9)
+hprsw_field_v_m = hprsw_field_voltage_v / hprsw_gap_m
+hprsw_field_v_cm = hprsw_field_v_m / 100.0
+hprsw_sep_temp_k = hprsw_separation_temp_c + 273.15
+hprsw_pressure_pa = hprsw_pressure_bar * 1e5
+hprsw_number_density_m3 = (
+    hprsw_pressure_pa / (BOLTZMANN_J_K * hprsw_sep_temp_k)
+    if hprsw_sep_temp_k > 0 else math.inf
+)
+hprsw_reduced_field_td = (
+    hprsw_field_v_m / hprsw_number_density_m3 * 1e21
+    if hprsw_number_density_m3 > 0 else math.inf
+)
+
+# 3) Ion-drift and quench timescale diagnostics.
+hprsw_ion_mobility_m2_vs = hprsw_ion_mobility_cm2_vs * 1e-4
+hprsw_ion_drift_velocity_m_s = hprsw_ion_mobility_m2_vs * hprsw_field_v_m
+hprsw_sep_distance_m = hprsw_separation_distance_mm * 1e-3
+hprsw_ion_separation_time_s = (
+    hprsw_sep_distance_m / hprsw_ion_drift_velocity_m_s
+    if hprsw_ion_drift_velocity_m_s > 0 else math.inf
+)
+hprsw_residence_time_s = max(hprsw_residence_time_ms * 1e-3, 1e-12)
+hprsw_separation_timescale_index = (
+    hprsw_residence_time_s / hprsw_ion_separation_time_s
+    if hprsw_ion_separation_time_s > 0 and math.isfinite(hprsw_ion_separation_time_s)
+    else 0.0
+)
+hprsw_ion_drift_distance_m = (
+    hprsw_ion_drift_velocity_m_s * hprsw_residence_time_s
+)
+
+hprsw_plasma_temp_k = hprsw_plasma_temp_c + 273.15
+hprsw_quench_outlet_temp_k = hprsw_quench_outlet_temp_c + 273.15
+hprsw_quench_delta_t_k = max(
+    hprsw_plasma_temp_k - hprsw_quench_outlet_temp_k, 0.0
+)
+hprsw_quench_cooling_rate_k_s = (
+    hprsw_quench_delta_t_k / hprsw_quench_time_s
+    if hprsw_quench_time_s > 0 else math.inf
+)
+hprsw_quench_vs_recomb_ratio = (
+    hprsw_recomb_tau_s / hprsw_quench_time_s
+    if hprsw_quench_time_s > 0 else math.inf
+)
+
+# 4) First-order reactor sizing on the same-net-power HPRS-W case.
+hprsw_norm_argon_circulation_kg_h = (
+    norm_hprsw_h2_gross_kg_h * hprsw_argon_circulation
+)
+hprsw_steam_mol_s = (
+    norm_hprsw_water_circulation_kg_h / (WATER_MOLAR / 1000.0) / 3600.0
+)
+hprsw_argon_mol_s = (
+    hprsw_norm_argon_circulation_kg_h / ARGON_MOLAR_KG / 3600.0
+    if ARGON_MOLAR_KG > 0 else 0.0
+)
+hprsw_total_feed_mol_s = hprsw_steam_mol_s + hprsw_argon_mol_s
+hprsw_feed_volumetric_m3_s = (
+    hprsw_total_feed_mol_s * GAS_CONSTANT_J_MOL_K * hprsw_sep_temp_k
+    / hprsw_pressure_pa
+    if hprsw_pressure_pa > 0 else math.inf
+)
+hprsw_active_volume_m3 = hprsw_feed_volumetric_m3_s * hprsw_residence_time_s
+hprsw_active_volume_l = hprsw_active_volume_m3 * 1000.0
+hprsw_core_diameter_m = (
+    (4.0 * hprsw_active_volume_m3 / (math.pi * hprsw_reactor_aspect_ratio)) ** (1.0 / 3.0)
+    if hprsw_active_volume_m3 > 0 and hprsw_reactor_aspect_ratio > 0 else 0.0
+)
+hprsw_core_length_m = hprsw_core_diameter_m * hprsw_reactor_aspect_ratio
+hprsw_core_electric_kw = norm_hprsw_electric_kw * hprsw_plasma_power_share
+hprsw_power_density_kw_l = (
+    hprsw_core_electric_kw / hprsw_active_volume_l
+    if hprsw_active_volume_l > 0 else math.inf
+)
+
+hprsw_hot_stream_mass_kg_s = (
+    (norm_hprsw_water_circulation_kg_h + hprsw_norm_argon_circulation_kg_h)
+    / 3600.0
+)
+hprsw_quench_sensible_duty_kw = (
+    hprsw_hot_stream_mass_kg_s
+    * hprsw_effective_hot_gas_cp
+    * hprsw_quench_delta_t_k
+)
+hprsw_coolant_flow_kg_s = (
+    hprsw_quench_sensible_duty_kw / (4.18 * hprsw_coolant_delta_t_c)
+    if hprsw_coolant_delta_t_c > 0 else math.inf
+)
+hprsw_coolant_flow_l_min = hprsw_coolant_flow_kg_s * 60.0
+
+# 5) Automatic HPRS-W break-even solver versus conventional gasoline.
+hprsw_shaft_kwh_per_kg_delivered = engine_eff * H2_LHV_KWH_KG
+hprsw_allowed_total_gross_for_energy_parity = (
+    hprsw_shaft_kwh_per_kg_delivered * hprsw_recovery_chain / conventional_eff
+    if conventional_eff > 0 else math.inf
+)
+hprsw_max_plasma_kwhkg_energy_parity = (
+    hprsw_allowed_total_gross_for_energy_parity
+    - hprsw_external_heat_per_gross_h2
+)
+hprsw_energy_parity_thermoneutral_margin = (
+    hprsw_allowed_total_gross_for_energy_parity
+    - WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2
+)
+hprsw_required_recovery_chain_energy_parity = (
+    conventional_eff * hprsw_total_external_energy_per_gross_h2
+    / hprsw_shaft_kwh_per_kg_delivered
+    if hprsw_shaft_kwh_per_kg_delivered > 0 else math.inf
+)
+hprsw_required_engine_eff_energy_parity = (
+    conventional_eff * hprsw_total_external_energy_per_gross_h2
+    / (H2_LHV_KWH_KG * hprsw_recovery_chain)
+    if hprsw_recovery_chain > 0 else math.inf
+)
+
+if hprsw_steam_preheat > 0:
+    hprsw_required_heat_recovery_energy_parity = 1.0 - (
+        hprsw_allowed_total_gross_for_energy_parity - hprsw_plasma_electricity
+    ) / hprsw_steam_preheat
+else:
+    hprsw_required_heat_recovery_energy_parity = 0.0
+
+hprsw_water_makeup_per_gross_h2_l = (
+    WATER_KG_PER_KG_H2_STOICH
+    + WATER_KG_PER_KG_H2_STOICH
+    * max(hprsw_steam_excess - 1.0, 0.0)
+    * (1.0 - hprsw_excess_steam_recycle)
+)
+hprsw_argon_makeup_per_gross_h2_kg = (
+    hprsw_argon_circulation * (1.0 - hprsw_argon_recovery)
+)
+hprsw_o2_recovered_per_gross_h2_kg = (
+    O2_KG_PER_KG_H2_STOICH * hprsw_o2_recovery
+)
+hprsw_other_cost_per_gross_h2_chf = (
+    hprsw_external_heat_per_gross_h2 * thermal_energy_price_chf_kwh
+    + hprsw_water_makeup_per_gross_h2_l / 1000.0 * water_price_chf_m3
+    + hprsw_argon_makeup_per_gross_h2_kg * argon_price_chf_kg
+    - hprsw_o2_recovered_per_gross_h2_kg * oxygen_value_chf_kg
+)
+hprsw_conv_cost_benchmark_per_net_kwh = (
+    norm_conv_cost_chf_h / comparison_net_kw
+    if comparison_net_kw > 0 else math.inf
+)
+hprsw_allowed_cost_per_gross_h2_chf = (
+    hprsw_conv_cost_benchmark_per_net_kwh
+    * hprsw_shaft_kwh_per_kg_delivered
+    * hprsw_recovery_chain
+)
+
+if electricity_price_chf_kwh > 0:
+    hprsw_max_plasma_kwhkg_cost_parity = (
+        hprsw_allowed_cost_per_gross_h2_chf - hprsw_other_cost_per_gross_h2_chf
+    ) / electricity_price_chf_kwh
+else:
+    hprsw_max_plasma_kwhkg_cost_parity = math.inf
+
+if hprsw_plasma_electricity > 0:
+    hprsw_break_even_electricity_price_chf_kwh = (
+        hprsw_allowed_cost_per_gross_h2_chf - hprsw_other_cost_per_gross_h2_chf
+    ) / hprsw_plasma_electricity
+else:
+    hprsw_break_even_electricity_price_chf_kwh = math.inf
 
 # Per-kWh-net indicators.
 def per_net(value):
@@ -2115,7 +2547,208 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V2.7 Scientific Comparison — Same Net Shaft Power")
+st.subheader("V2.8 Advanced Theoretical Analysis — HPRS-W")
+st.caption(
+    "These diagnostics are first-order theoretical calculations. They do not solve plasma kinetics, "
+    "non-equilibrium chemistry, sheath physics, detailed CFD or electrode erosion."
+)
+
+st.markdown("#### 1 · Standard-state thermodynamic limits")
+t1, t2, t3, t4 = st.columns(4)
+t1.metric("Reversible minimum ΔG", f"{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H₂")
+t2.metric("Thermoneutral ΔH", f"{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H₂")
+t3.metric("Reversible voltage", f"{WATER_SPLIT_REV_VOLTAGE_V:.3f} V")
+t4.metric("Thermoneutral voltage", f"{WATER_SPLIT_THERMONEUTRAL_VOLTAGE_V:.3f} V")
+
+t5, t6, t7, t8 = st.columns(4)
+t5.metric(
+    "Actual external energy / delivered H₂",
+    f"{hprsw_total_external_energy_per_delivered_h2:.1f} kWh/kg",
+)
+t6.metric(
+    "External exergy / delivered H₂",
+    f"{hprsw_external_exergy_per_delivered_h2:.1f} kWhₑₓ/kg",
+)
+t7.metric("Second-law efficiency proxy", f"{100*hprsw_second_law_eff:.1f}%")
+t8.metric("HHV energy-efficiency proxy", f"{100*hprsw_hhv_energy_eff:.1f}%")
+
+if hprsw_standard_energy_margin_gross < 0:
+    st.error(
+        f"Thermodynamic closure warning: the modeled external electricity + unrecovered heat "
+        f"is {abs(hprsw_standard_energy_margin_gross):.2f} kWh/kg gross H₂ below the 298 K "
+        f"standard-state ΔH reference. The scenario therefore requires an unmodeled energy source "
+        f"or a different thermodynamic boundary."
+    )
+elif hprsw_standard_exergy_margin_gross < 0:
+    st.error(
+        f"Exergy closure warning: the modeled external exergy is "
+        f"{abs(hprsw_standard_exergy_margin_gross):.2f} kWh/kg gross H₂ below the standard-state ΔG reference."
+    )
+else:
+    st.success(
+        f"Standard-state closure check is non-negative: energy margin "
+        f"{hprsw_standard_energy_margin_gross:+.2f} kWh/kg gross H₂ and simple exergy margin "
+        f"{hprsw_standard_exergy_margin_gross:+.2f} kWh/kg gross H₂."
+    )
+
+st.markdown("#### 2 · Electric-field and reduced-field diagnostic")
+e1, e2, e3, e4 = st.columns(4)
+e1.metric("Electric field E", f"{hprsw_field_v_cm:.1f} V/cm")
+e2.metric("Gas number density N", f"{hprsw_number_density_m3:.2e} m⁻³")
+e3.metric("Reduced field E/N", f"{hprsw_reduced_field_td:.2f} Td")
+e4.metric("Ion drift velocity", f"{hprsw_ion_drift_velocity_m_s:.2f} m/s")
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>E/N interpretation:</b> E/N is calculated from the user-selected bulk field,
+    ideal-gas number density and separation-zone state. Local sheath fields, non-uniform
+    plasma fields, electron-energy distributions and species-specific transport are not solved.
+    The current input corresponds to <b>{hprsw_field_voltage_v:.0f} V</b> across
+    <b>{hprsw_electrode_gap_mm:.1f} mm</b> at <b>{hprsw_pressure_bar:.2f} bar</b> and
+    <b>{hprsw_separation_temp_c:.0f} °C</b>.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("#### 3 · Ion-separation and quench timescales")
+q1, q2, q3, q4 = st.columns(4)
+q1.metric(
+    "Ion separation time",
+    f"{1000*hprsw_ion_separation_time_s:.2f} ms" if math.isfinite(hprsw_ion_separation_time_s) else "∞",
+)
+q2.metric("Residence / separation", f"{hprsw_separation_timescale_index:.2f}×")
+q3.metric("Quench cooling rate", f"{hprsw_quench_cooling_rate_k_s:.2e} K/s")
+q4.metric("Timescale H₂ survival", f"{100*hprsw_quench_survival_timescale:.1f}%")
+
+if hprsw_separation_timescale_index < 1.0:
+    st.warning(
+        f"Ion-steering diagnostic: with the selected effective mobility, the charged-species residence "
+        f"time is shorter than the estimated drift time across {hprsw_separation_distance_mm:.1f} mm. "
+        f"The simple separation index is {hprsw_separation_timescale_index:.2f}×."
+    )
+else:
+    st.success(
+        f"Ion-steering timescale is favorable in the simple drift model: the residence time is "
+        f"{hprsw_separation_timescale_index:.2f}× the calculated separation time. This is not a purity prediction."
+    )
+
+st.caption(
+    f"Quench model used in the mass balance: {hprsw_quench_loss_model}. "
+    f"Effective H₂ quench/recombination loss = {100*hprsw_quench_loss_effective:.2f}%. "
+    f"The first-order diagnostic uses τ_recomb = {hprsw_recomb_tau_ms:.1f} ms and "
+    f"t_quench = {hprsw_quench_time_ms:.2f} ms."
+)
+
+st.markdown("#### 4 · First-order reactor sizing at the normalized power point")
+r1a, r2a, r3a, r4a = st.columns(4)
+r1a.metric("Estimated active gas volume", f"{hprsw_active_volume_l:.2f} L")
+r2a.metric("Equivalent core diameter", f"{1000*hprsw_core_diameter_m:.0f} mm")
+r3a.metric("Equivalent core length", f"{1000*hprsw_core_length_m:.0f} mm")
+r4a.metric("Core power-density proxy", f"{hprsw_power_density_kw_l:.2f} kW/L")
+
+r5a, r6a, r7a, r8a = st.columns(4)
+r5a.metric("Steam circulation", f"{norm_hprsw_water_circulation_kg_h:.1f} kg/h")
+r6a.metric("Argon circulation", f"{hprsw_norm_argon_circulation_kg_h:.2f} kg/h")
+r7a.metric("Sensible quench duty", f"{hprsw_quench_sensible_duty_kw:.1f} kW")
+r8a.metric("Coolant flow proxy", f"{hprsw_coolant_flow_l_min:.1f} L/min")
+
+st.markdown(
+    """
+    <div class="horg-note">
+    <b>Sizing boundary:</b> active volume is inferred from ideal-gas volumetric flow × selected residence time.
+    The equivalent diameter/length assumes a simple cylindrical core. The quench duty uses a lumped constant Cp;
+    dissociation energy, radiative transfer, wall heat flux, electrode cooling and two-phase quench behavior are not solved.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("#### 5 · Automatic HPRS-W break-even solver vs conventional gasoline")
+
+be1, be2, be3, be4 = st.columns(4)
+be1.metric(
+    "Max plasma electricity for energy parity",
+    f"{hprsw_max_plasma_kwhkg_energy_parity:.1f} kWh/kg H₂"
+    if hprsw_max_plasma_kwhkg_energy_parity >= 0 else "Impossible at current heat load",
+)
+be2.metric(
+    "Required total H₂ recovery chain",
+    f"{100*hprsw_required_recovery_chain_energy_parity:.1f}%",
+)
+be3.metric(
+    "Required H₂-engine efficiency",
+    f"{100*hprsw_required_engine_eff_energy_parity:.1f}%",
+)
+
+if hprsw_required_heat_recovery_energy_parity <= 0:
+    heat_req_text = "0%"
+elif hprsw_required_heat_recovery_energy_parity <= 1:
+    heat_req_text = f"{100*hprsw_required_heat_recovery_energy_parity:.1f}%"
+else:
+    heat_req_text = ">100% (impossible)"
+be4.metric("Required heat recovery", heat_req_text)
+
+if hprsw_energy_parity_thermoneutral_margin < 0:
+    st.error(
+        f"Fundamental parity warning: at the current H2-engine efficiency and H2 recovery chain, "
+        f"the total gross energy ceiling required to equal the conventional {100*conventional_eff:.0f}% "
+        f"efficiency is {hprsw_allowed_total_gross_for_energy_parity:.2f} kWh/kg gross H2, which is "
+        f"{abs(hprsw_energy_parity_thermoneutral_margin):.2f} kWh/kg below the 298 K thermoneutral "
+        f"water-splitting reference. Energy parity is therefore not thermodynamically closed until "
+        f"engine efficiency and/or the H2 recovery chain improve."
+    )
+else:
+    st.success(
+        f"The energy-parity ceiling is {hprsw_energy_parity_thermoneutral_margin:.2f} kWh/kg above "
+        f"the 298 K thermoneutral reference before detailed reactor losses."
+    )
+
+bc1, bc2, bc3, bc4 = st.columns(4)
+bc1.metric(
+    "Max plasma electricity for cost parity",
+    (
+        f"{hprsw_max_plasma_kwhkg_cost_parity:.1f} kWh/kg H₂"
+        if math.isfinite(hprsw_max_plasma_kwhkg_cost_parity)
+        else "No electricity-price limit"
+    ),
+)
+bc2.metric(
+    "Break-even electricity price",
+    f"CHF {hprsw_break_even_electricity_price_chf_kwh:.3f}/kWh"
+    if math.isfinite(hprsw_break_even_electricity_price_chf_kwh)
+    else "—",
+)
+bc3.metric("Current electricity price", f"CHF {electricity_price_chf_kwh:.3f}/kWh")
+bc4.metric("Conventional cost benchmark", f"CHF {hprsw_conv_cost_benchmark_per_net_kwh:.3f}/kWh net")
+
+energy_parity_possible = (
+    hprsw_max_plasma_kwhkg_energy_parity >= 0
+    and hprsw_required_recovery_chain_energy_parity <= 1.0
+    and hprsw_required_engine_eff_energy_parity <= 1.0
+    and hprsw_required_heat_recovery_energy_parity <= 1.0
+)
+cost_parity_possible = (
+    hprsw_max_plasma_kwhkg_cost_parity >= 0
+    if math.isfinite(hprsw_max_plasma_kwhkg_cost_parity)
+    else True
+)
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Break-even interpretation:</b><br>
+    Energy-parity feasibility under the current one-at-a-time algebra: <b>{'mathematically reachable' if energy_parity_possible else 'not reachable without changing multiple assumptions'}</b>.<br>
+    Cost-parity feasibility before capital cost, maintenance and lifecycle effects: <b>{'mathematically reachable' if cost_parity_possible else 'not reachable at the present non-electric operating costs'}</b>.<br><br>
+    The solver compares HPRS-W total external energy to the selected conventional gasoline brake efficiency.
+    It is a screening calculation, not an optimized reactor design.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.subheader("V2.8 Scientific Comparison — Same Net Shaft Power")
 
 st.caption(
     f"All four pathways below are normalized to the same useful mechanical output: "
@@ -2275,7 +2908,7 @@ st.dataframe(
 st.markdown(
     f"""
     <div class="horg-note">
-    <b>How to read V2.7:</b><br>
+    <b>How to read V2.8:</b><br>
     • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
     • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
       The displayed electrical value is the remaining plasma electricity after the selected
@@ -2329,7 +2962,7 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The thermal and electrical process inputs are separated in V2.7. The reaction-enthalpy
+    The thermal and electrical process inputs are separated in V2.8. The reaction-enthalpy
     reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
@@ -2456,14 +3089,14 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V2.7 design diagnosis varies one lever at a time and solves the
+        The V2.8 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
-        **V2.7 four-pathway same-net-power normalization**
+        **V2.8 four-pathway same-net-power normalization**
 
         The primary comparison rescales all four pathways to the same selected net shaft power.  
         Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
@@ -2521,12 +3154,27 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://www.energy.gov/cmei/fuels/technical-targets-proton-exchange-membrane-electrolysis
         - https://stage.energy.gov/cmei/fuels/technical-targets-high-temperature-electrolysis
 
-        **Boundary**
+        **V2.8 standard-state thermodynamic references**
 
-        The model does not yet solve plasma kinetics, electrode erosion, charged-species residence time,
-        E-field strength in V/m, quench chemistry, H₂/O₂ flammability management, membrane selectivity,
-        argon purity, compression, startup energy or transient vehicle dynamics.
+        NIST-JANAF water(l), 298.15 K, 1 bar:
+        - reaction Gibbs requirement: **{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H₂**
+        - reaction enthalpy / thermoneutral reference: **{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H₂**
+        - corresponding reversible voltage: **{WATER_SPLIT_REV_VOLTAGE_V:.3f} V**
+        - corresponding thermoneutral voltage: **{WATER_SPLIT_THERMONEUTRAL_VOLTAGE_V:.3f} V**
+
+        References:
+        - https://janaf.nist.gov/tables/H-063.html
+        - https://www.hydrogen.energy.gov/docs/hydrogenprogramlibraries/pdfs/46676.pdf
+
+        **V2.8 advanced diagnostic boundary**
+
+        E/N uses an ideal-gas bulk number density. Ion drift uses a user-supplied effective mobility.
+        Quench survival uses an optional first-order lumped timescale. Reactor volume is inferred from
+        ideal-gas flow × residence time. These are screening equations only; V2.8 still does not solve
+        non-equilibrium plasma kinetics, electron-energy distributions, sheath physics, detailed CFD,
+        electrode erosion, radiative heat transfer, membrane selectivity, H₂/O₂ flammability management,
+        startup energy or transient vehicle dynamics.
         """
     )
 
-st.caption("HPRS Automotive V2.7 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.8 · Advanced theoretical screening model · Simulation → laboratory validation → proof of concept")
