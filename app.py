@@ -73,7 +73,7 @@ O2_MOLAR = 31.998
 WATER_KG_PER_KG_H2_STOICH = WATER_MOLAR / H2_MOLAR
 O2_KG_PER_KG_H2_STOICH = O2_MOLAR / (2.0 * H2_MOLAR)
 
-# V3.0 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
+# V3.1 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
 # NIST-JANAF water(l): Delta_f H deg = -285.830 kJ/mol,
 # Delta_f G deg = -237.141 kJ/mol. For H2O(l) -> H2(g) + 0.5 O2(g),
 # the water-splitting reaction therefore requires +285.830 kJ/mol enthalpy
@@ -135,7 +135,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V3.0</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V3.1</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -205,7 +205,7 @@ st.markdown(
 )
 
 st.info(
-    "Four pathways are compared in V3.0: conventional gasoline, dry HPRS "
+    "Four pathways are compared in V3.1: conventional gasoline, dry HPRS "
     "carbon-retention, gasoline + water/steam, and HPRS-W plasma water splitting. "
     "HPRS-W is evaluated with advanced thermodynamic/plasma diagnostics plus a coupled "
     "feasible-region search that automatically rejects points failing the standard-state energy/exergy guards."
@@ -256,7 +256,7 @@ with st.sidebar:
         step=5,
         help=(
             "All four pathways are rescaled to deliver this same net mechanical "
-            "shaft power. This is the primary apples-to-apples comparison in V3.0."
+            "shaft power. This is the primary apples-to-apples comparison in V3.1."
         ),
     )
 
@@ -557,7 +557,7 @@ with st.sidebar:
     ) / 100.0
 
     st.divider()
-    st.subheader("V3.0 advanced theory — HPRS-W")
+    st.subheader("V3.1 advanced theory — HPRS-W")
     st.caption(
         "Diagnostic-only physics inputs. These do not represent measured HydrogenOrg reactor data."
     )
@@ -725,7 +725,7 @@ with st.sidebar:
         )
 
     st.divider()
-    st.subheader("V3.0 feasible-region search")
+    st.subheader("V3.1 feasible-region search")
     st.caption(
         "Coupled search over plasma electricity, total H2 recovery, H2-engine efficiency "
         "and HPRS-W heat recovery. Standard-state thermodynamic guards are applied automatically."
@@ -750,7 +750,7 @@ with st.sidebar:
             value=(84, 98),
             step=1,
             help=(
-                "Lumped delivered/gross H2 recovery used only by the V3.0 search. It represents the "
+                "Lumped delivered/gross H2 recovery used only by the V3.1 search. It represents the "
                 "combined effect of species steering, quench survival and purification recovery."
             ),
         )
@@ -777,6 +777,51 @@ with st.sidebar:
                 "Resolution changes the number of deterministic grid points, not the physics model. "
                 "Standard is designed for interactive use."
             ),
+        )
+
+    st.divider()
+    st.subheader("V3.1 prototype-target screen")
+    st.caption(
+        "Prototype-oriented limits are engineering screening assumptions, not measured HydrogenOrg hardware limits. "
+        "The standard-state ΔH/ΔG guards remain the thermodynamic constraints."
+    )
+
+    with st.expander("Prototype-oriented target constraints", expanded=False):
+        v31_proto_min_plasma = st.number_input(
+            "Prototype plasma-electricity floor (kWh_e/kg gross H2)",
+            min_value=32.0,
+            max_value=60.0,
+            value=39.4,
+            step=0.1,
+            help=(
+                "Conservative prototype-screen floor used to avoid selecting very low electrical-intensity points "
+                "as the first engineering target. This is NOT a thermodynamic lower bound on plasma electricity by itself; "
+                "the physical screening guards remain total energy ≥ ΔH and modeled exergy ≥ ΔG."
+            ),
+        )
+        v31_proto_max_recovery_pct = st.slider(
+            "Maximum prototype H2 recovery chain (%)",
+            min_value=85,
+            max_value=100,
+            value=95,
+            step=1,
+            help="Upper cap used to prevent the prototype target from relying on near-perfect H2 recovery.",
+        )
+        v31_proto_max_engine_bte_pct = st.slider(
+            "Maximum prototype H2-engine BTE (%)",
+            min_value=35,
+            max_value=50,
+            value=45,
+            step=1,
+            help="Upper cap for the prototype-oriented target search; it is not a claim of demonstrated engine performance.",
+        )
+        v31_proto_max_heat_recovery_pct = st.slider(
+            "Maximum prototype heat recovery (%)",
+            min_value=50,
+            max_value=95,
+            value=85,
+            step=1,
+            help="Upper cap to keep the first prototype target from depending on extreme heat recovery.",
         )
 
     st.divider()
@@ -986,7 +1031,7 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-# V3.0 keeps steam-route thermal and electrical process energy separate.
+# V3.1 keeps steam-route thermal and electrical process energy separate.
 steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
     * steam_thermal_energy
@@ -1208,7 +1253,7 @@ hprsw_closed_loop_margin_kwh_per_kg = (
 )
 
 # ============================================================
-# V3.0 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
+# V3.1 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
 # ============================================================
 
 comparison_net_kw = float(normalized_target_kw)
@@ -1440,7 +1485,7 @@ norm_hprsw_total_eff = (
 )
 
 # ============================================================
-# V3.0 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
+# V3.1 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
 # ============================================================
 
 # 1) Standard-state water-splitting thermodynamics and simple exergy view.
@@ -1660,7 +1705,7 @@ else:
     hprsw_break_even_electricity_price_chf_kwh = math.inf
 
 # ============================================================
-# V3.0 MULTI-PARAMETER FEASIBLE-REGION SOLVER
+# V3.1 MULTI-PARAMETER FEASIBLE-REGION SOLVER
 # ============================================================
 # This deterministic grid scan varies four coupled HPRS-W levers together:
 # plasma electricity, total delivered/gross H2 recovery, H2-engine brake
@@ -1670,7 +1715,7 @@ else:
 #   1) total external energy >= Delta H (thermoneutral reference), and
 #   2) external exergy >= Delta G (reversible-work reference).
 # External heat exergy is approximated with the same Carnot factor used in the
-# V3.0 advanced exergy diagnostic. These guards do not replace temperature-
+# V3.1 advanced exergy diagnostic. These guards do not replace temperature-
 # dependent equilibrium or non-equilibrium plasma chemistry.
 
 def _v29_linspace(lo, hi, n):
@@ -1865,7 +1910,7 @@ v29_lowest_cost_dual_candidate = (
 
 
 # ============================================================
-# V3.0 PARETO-FRONTIER ANALYSIS
+# V3.1 PARETO-FRONTIER ANALYSIS
 # ============================================================
 # Primary Pareto definition:
 #   - maximize screened total-energy-to-shaft efficiency
@@ -1996,7 +2041,101 @@ else:
 v30_pareto_count = len(v30_cost_eff_pareto_points)
 v30_dual_pareto_count = len(v30_dual_pareto_points)
 
-# Current selected HPRS-W point under the same V3.0 guards.
+
+# ============================================================
+# V3.1 PROTOTYPE-ORIENTED TARGET SCREEN
+# ============================================================
+# This is deliberately a second-stage engineering screen layered on top of
+# the thermodynamic guards. The limits below are user-selectable and are not
+# physical laws or measured hardware limits. The default plasma-electricity
+# floor is a conservative target-screen assumption; ΔH and ΔG remain the
+# actual standard-state thermodynamic guards in this model.
+
+v31_proto_max_recovery = v31_proto_max_recovery_pct / 100.0
+v31_proto_max_engine_bte = v31_proto_max_engine_bte_pct / 100.0
+v31_proto_max_heat_recovery = v31_proto_max_heat_recovery_pct / 100.0
+
+v31_prototype_points = [
+    p for p in v29_thermo_points
+    if p["plasma"] + 1e-12 >= v31_proto_min_plasma
+    and p["recovery"] <= v31_proto_max_recovery + 1e-12
+    and p["engine_eff"] <= v31_proto_max_engine_bte + 1e-12
+    and p["heat_recovery"] <= v31_proto_max_heat_recovery + 1e-12
+]
+
+v31_prototype_energy_points = [
+    p for p in v31_prototype_points
+    if p["system_eff"] + 1e-12 >= conventional_eff
+]
+
+v31_prototype_dual_points = [
+    p for p in v31_prototype_energy_points
+    if p["cost_per_net_kwh"] <= hprsw_conv_cost_benchmark_per_net_kwh + 1e-12
+]
+
+v31_prototype_target = (
+    min(
+        v31_prototype_energy_points,
+        key=lambda p: (
+            p["balanced_stretch"],
+            p["sum_stretch"],
+            p["cost_per_net_kwh"],
+            p["total_energy"],
+        ),
+    )
+    if v31_prototype_energy_points else None
+)
+
+v31_prototype_dual_target = (
+    min(
+        v31_prototype_dual_points,
+        key=lambda p: (
+            p["balanced_stretch"],
+            p["sum_stretch"],
+            p["cost_per_net_kwh"],
+        ),
+    )
+    if v31_prototype_dual_points else None
+)
+
+# If no prototype-screen point reaches energy parity, retain the best available
+# point so the UI can explain how far the constrained region is from parity.
+v31_prototype_best_available = (
+    max(
+        v31_prototype_points,
+        key=lambda p: (p["system_eff"], -p["cost_per_net_kwh"]),
+    )
+    if v31_prototype_points else None
+)
+
+v31_prototype_display_target = (
+    v31_prototype_target
+    if v31_prototype_target is not None
+    else v31_prototype_best_available
+)
+
+v31_prototype_count = len(v31_prototype_points)
+v31_prototype_energy_count = len(v31_prototype_energy_points)
+v31_prototype_dual_count = len(v31_prototype_dual_points)
+
+
+def _v31_break_even_electricity_price(p):
+    if p is None or p["plasma"] <= 0 or p["shaft_per_gross_h2"] <= 0:
+        return math.inf
+    _allowable_gross_cost = (
+        hprsw_conv_cost_benchmark_per_net_kwh * p["shaft_per_gross_h2"]
+    )
+    _non_electric_cost = (
+        p["external_heat"] * thermal_energy_price_chf_kwh
+        + v29_nonthermal_cost_per_gross_h2_chf
+    )
+    return max(0.0, (_allowable_gross_cost - _non_electric_cost) / p["plasma"])
+
+v31_prototype_break_even_electricity_price = _v31_break_even_electricity_price(
+    v31_prototype_display_target
+)
+
+# Current selected HPRS-W point under the same V3.1 guards.
 v29_current_total_energy = hprsw_total_external_energy_per_gross_h2
 v29_current_external_exergy = hprsw_external_exergy_per_gross_h2
 v29_current_shaft_per_gross_h2 = H2_LHV_KWH_KG * engine_eff * hprsw_recovery_chain
@@ -2964,7 +3103,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V3.0 Advanced Theoretical Analysis — HPRS-W")
+st.subheader("V3.1 Advanced Theoretical Analysis — HPRS-W")
 st.caption(
     "These diagnostics are first-order theoretical calculations. They do not solve plasma kinetics, "
     "non-equilibrium chemistry, sheath physics, detailed CFD or electrode erosion."
@@ -3165,7 +3304,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("#### 6 · V3.0 multi-parameter feasible region")
+st.markdown("#### 6 · V3.1 multi-parameter feasible region")
 
 st.caption(
     "The grid below changes plasma electricity, total H2 recovery, H2-engine efficiency "
@@ -3204,7 +3343,7 @@ st.markdown(
     <b>Current selected HPRS-W point:</b> {', '.join(current_status_parts)}.<br>
     Current screened total-energy-to-shaft efficiency = <b>{100*v29_current_system_eff:.1f}%</b>;
     conventional benchmark = <b>{100*conventional_eff:.1f}%</b>.<br><br>
-    <b>Thermodynamic guards used by V3.0:</b>
+    <b>Thermodynamic guards used by V3.1:</b>
     total external energy must be at least <b>{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H2</b>
     and modeled external exergy must be at least <b>{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H2</b>.
     The heat-exergy contribution uses the selected heat-source temperature through a simple Carnot factor.
@@ -3277,16 +3416,16 @@ if v29_energy_competitive_points:
         )
 else:
     st.error(
-        "No energy-competitive point was found inside the selected V3.0 search ranges after applying "
+        "No energy-competitive point was found inside the selected V3.1 search ranges after applying "
         "the standard-state energy and exergy guards. Expand the search ranges or improve the assumed architecture."
     )
 
 
 # ============================================================
-# V3.0 PARETO FRONTIER — DECISION VIEW
+# V3.1 PARETO FRONTIER — DECISION VIEW
 # ============================================================
 
-st.markdown("#### 7 · V3.0 Pareto Frontier — efficiency, cost and research stretch")
+st.markdown("#### 7 · V3.1 Pareto Frontier — efficiency, cost and research stretch")
 
 st.caption(
     "The primary frontier below uses only two objectives: maximize screened system efficiency and minimize "
@@ -3329,6 +3468,17 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
                 "Plasma kWh/kg H2": _pnt["plasma"],
                 "Research stretch %": 100.0 * _pnt["balanced_stretch"],
                 "Set": "Pareto frontier",
+            }
+        )
+
+    if v31_prototype_display_target is not None:
+        _v30_chart_rows.append(
+            {
+                "Modeled cost CHF/kWh net": v31_prototype_display_target["cost_per_net_kwh"],
+                "System efficiency %": 100.0 * v31_prototype_display_target["system_eff"],
+                "Plasma kWh/kg H2": v31_prototype_display_target["plasma"],
+                "Research stretch %": 100.0 * v31_prototype_display_target["balanced_stretch"],
+                "Set": "V3.1 prototype target",
             }
         )
 
@@ -3385,7 +3535,7 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
         if _row is not None:
             _v30_decision_rows.append(_row)
 
-    st.markdown("##### Representative V3.0 decision points")
+    st.markdown("##### Representative V3.1 decision points")
     st.dataframe(_v30_decision_rows, use_container_width=True, hide_index=True)
 
     if v30_knee_point is not None:
@@ -3418,6 +3568,16 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
             }
         )
 
+    if v31_prototype_display_target is not None:
+        _v30_stretch_rows.append(
+            {
+                "Research stretch %": 100.0 * v31_prototype_display_target["balanced_stretch"],
+                "System efficiency %": 100.0 * v31_prototype_display_target["system_eff"],
+                "Plasma kWh/kg H2": v31_prototype_display_target["plasma"],
+                "Set": "V3.1 prototype target",
+            }
+        )
+
     st.markdown("##### Efficiency vs research-stretch projection")
     st.scatter_chart(
         pd.DataFrame(_v30_stretch_rows),
@@ -3439,10 +3599,139 @@ else:
         "feasible points."
     )
 
+# ============================================================
+# V3.1 PROTOTYPE TARGET — CONSTRAINED ENGINEERING VIEW
+# ============================================================
+
+st.markdown("#### 8 · V3.1 Prototype Target — constrained engineering screen")
+
+st.caption(
+    "This view intentionally limits the search to a more conservative first-prototype envelope. "
+    "It does not claim that the selected limits are experimentally demonstrated or easy to achieve."
+)
+
+pt1, pt2, pt3, pt4 = st.columns(4)
+pt1.metric("Prototype-screen points", f"{v31_prototype_count:,}")
+pt2.metric("Energy-competitive", f"{v31_prototype_energy_count:,}")
+pt3.metric("Energy + cost competitive", f"{v31_prototype_dual_count:,}")
+pt4.metric(
+    "Target criterion",
+    "Energy parity" if v31_prototype_target is not None else "Best available",
+)
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Prototype-screen limits:</b>
+    plasma electricity ≥ <b>{v31_proto_min_plasma:.1f} kWh/kg H2</b>,
+    total H2 recovery ≤ <b>{v31_proto_max_recovery_pct:.0f}%</b>,
+    H2-engine BTE ≤ <b>{v31_proto_max_engine_bte_pct:.0f}%</b>,
+    heat recovery ≤ <b>{v31_proto_max_heat_recovery_pct:.0f}%</b>.<br><br>
+    These are engineering-screen assumptions. The plasma floor is deliberately conservative and is
+    <b>not</b> a thermodynamic law on electrical input by itself. Standard-state total-energy and
+    exergy guards remain ΔH = <b>{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H2</b> and
+    ΔG = <b>{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H2</b> in this model.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def _v31_comparison_row(label, p, current=False):
+    if current:
+        return {
+            "Point": label,
+            "Plasma kWh/kg H2": f"{hprsw_plasma_electricity:.1f}",
+            "H2 recovery": f"{100*hprsw_recovery_chain:.1f}%",
+            "Engine BTE": f"{100*engine_eff:.1f}%",
+            "Heat recovery": f"{100*hprsw_heat_recovery:.1f}%",
+            "Total energy kWh/kg": f"{v29_current_total_energy:.2f}",
+            "System efficiency": f"{100*v29_current_system_eff:.1f}%",
+            "Modeled cost CHF/kWh": f"{v29_current_cost_per_net_kwh:.3f}",
+            "Energy parity": "Yes" if v29_current_energy_competitive else "No",
+            "Cost parity": "Yes" if v29_current_cost_competitive else "No",
+        }
+    if p is None:
+        return None
+    return {
+        "Point": label,
+        "Plasma kWh/kg H2": f"{p['plasma']:.1f}",
+        "H2 recovery": f"{100*p['recovery']:.1f}%",
+        "Engine BTE": f"{100*p['engine_eff']:.1f}%",
+        "Heat recovery": f"{100*p['heat_recovery']:.1f}%",
+        "Total energy kWh/kg": f"{p['total_energy']:.2f}",
+        "System efficiency": f"{100*p['system_eff']:.1f}%",
+        "Modeled cost CHF/kWh": f"{p['cost_per_net_kwh']:.3f}",
+        "Energy parity": "Yes" if p['system_eff'] + 1e-12 >= conventional_eff else "No",
+        "Cost parity": "Yes" if p['cost_per_net_kwh'] <= hprsw_conv_cost_benchmark_per_net_kwh + 1e-12 else "No",
+    }
+
+_v31_rows = [_v31_comparison_row("Current selected HPRS-W", None, current=True)]
+if v31_prototype_display_target is not None:
+    _v31_rows.append(
+        _v31_comparison_row(
+            "V3.1 Prototype Target" if v31_prototype_target is not None else "Best point inside prototype screen",
+            v31_prototype_display_target,
+        )
+    )
+if v30_knee_point is not None:
+    _v31_rows.append(_v31_comparison_row("Pareto knee — theoretical decision proxy", v30_knee_point))
+
+st.markdown("##### Current point vs prototype target vs Pareto knee")
+st.dataframe(_v31_rows, use_container_width=True, hide_index=True)
+
+if v31_prototype_target is not None:
+    _pt = v31_prototype_target
+    _pt_cost_gap = _pt["cost_per_net_kwh"] - hprsw_conv_cost_benchmark_per_net_kwh
+    st.success(
+        f"Prototype-oriented energy-parity target: plasma {_pt['plasma']:.1f} kWh/kg H2, "
+        f"H2 recovery {100*_pt['recovery']:.1f}%, engine BTE {100*_pt['engine_eff']:.1f}%, "
+        f"heat recovery {100*_pt['heat_recovery']:.1f}%. Modeled total-energy-to-shaft efficiency "
+        f"= {100*_pt['system_eff']:.1f}% versus {100*conventional_eff:.1f}% conventional."
+    )
+    if _pt_cost_gap <= 1e-12:
+        st.info(
+            f"This prototype target also meets the current modeled cost benchmark: "
+            f"CHF {_pt['cost_per_net_kwh']:.3f}/kWh net versus CHF {hprsw_conv_cost_benchmark_per_net_kwh:.3f}/kWh net."
+        )
+    else:
+        st.warning(
+            f"Energy parity is reached, but modeled operating cost is still CHF {_pt_cost_gap:.3f}/kWh net above "
+            f"the conventional benchmark. With the other selected cost assumptions unchanged, electricity would need "
+            f"to be about CHF {v31_prototype_break_even_electricity_price:.3f}/kWh or lower for cost parity at this point."
+        )
+elif v31_prototype_best_available is not None:
+    _pb = v31_prototype_best_available
+    st.warning(
+        f"No point inside the current prototype-oriented limits reaches the {100*conventional_eff:.1f}% energy benchmark. "
+        f"The best screened point reaches {100*_pb['system_eff']:.1f}% with plasma {_pb['plasma']:.1f} kWh/kg H2, "
+        f"H2 recovery {100*_pb['recovery']:.1f}%, engine BTE {100*_pb['engine_eff']:.1f}% and "
+        f"heat recovery {100*_pb['heat_recovery']:.1f}%."
+    )
+else:
+    st.error(
+        "The current prototype-oriented constraints contain no thermodynamically feasible grid point. "
+        "Relax one or more prototype-screen limits or widen the V3.1 feasible-region search ranges."
+    )
+
+if v31_prototype_dual_target is not None:
+    _pd = v31_prototype_dual_target
+    st.caption(
+        f"A point satisfying both energy and modeled-cost parity exists inside the prototype screen: "
+        f"{_pd['plasma']:.1f} kWh/kg H2 plasma, {100*_pd['recovery']:.1f}% H2 recovery, "
+        f"{100*_pd['engine_eff']:.1f}% engine BTE and {100*_pd['heat_recovery']:.1f}% heat recovery."
+    )
+else:
+    st.caption(
+        "No energy+cost-parity point exists inside the current prototype-oriented limits at the selected prices. "
+        "That does not imply physical impossibility; it identifies an economic gap within this deterministic screen."
+    )
+
+
 st.markdown(
     f"""
     <div class="horg-callout">
-    <b>V3.0 interpretation boundary:</b> a grid point marked feasible is only feasible within this
+    <b>V3.1 interpretation boundary:</b> a grid point marked feasible is only feasible within this
     lumped screening model. The scan does not solve temperature-dependent Gibbs equilibrium,
     electron-energy distributions, detailed H/O/OH kinetics, sheath fields, CFD, electrode erosion,
     membrane selectivity, H2/O2 flammability management, transient control or capital cost.
@@ -3452,7 +3741,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V3.0 Scientific Comparison — Same Net Shaft Power")
+st.subheader("V3.1 Scientific Comparison — Same Net Shaft Power")
 
 st.caption(
     f"All four pathways below are normalized to the same useful mechanical output: "
@@ -3612,7 +3901,7 @@ st.dataframe(
 st.markdown(
     f"""
     <div class="horg-note">
-    <b>How to read V3.0:</b><br>
+    <b>How to read V3.1:</b><br>
     • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
     • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
       The displayed electrical value is the remaining plasma electricity after the selected
@@ -3666,7 +3955,7 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The thermal and electrical process inputs are separated in V3.0. The reaction-enthalpy
+    The thermal and electrical process inputs are separated in V3.1. The reaction-enthalpy
     reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
@@ -3793,14 +4082,14 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V3.0 design diagnosis varies one lever at a time and solves the
+        The V3.1 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
-        **V3.0 four-pathway same-net-power normalization**
+        **V3.1 four-pathway same-net-power normalization**
 
         The primary comparison rescales all four pathways to the same selected net shaft power.  
         Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
@@ -3858,7 +4147,7 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://www.energy.gov/cmei/fuels/technical-targets-proton-exchange-membrane-electrolysis
         - https://stage.energy.gov/cmei/fuels/technical-targets-high-temperature-electrolysis
 
-        **V3.0 standard-state thermodynamic references**
+        **V3.1 standard-state thermodynamic references**
 
         NIST-JANAF water(l), 298.15 K, 1 bar:
         - reaction Gibbs requirement: **{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H₂**
@@ -3870,19 +4159,19 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://janaf.nist.gov/tables/H-063.html
         - https://www.hydrogen.energy.gov/docs/hydrogenprogramlibraries/pdfs/46676.pdf
 
-        **V3.0 advanced diagnostic boundary**
+        **V3.1 advanced diagnostic boundary**
 
         E/N uses an ideal-gas bulk number density. Ion drift uses a user-supplied effective mobility.
         Quench survival uses an optional first-order lumped timescale. Reactor volume is inferred from
-        ideal-gas flow × residence time. The V3.0 feasible-region solver then scans coupled values of
+        ideal-gas flow × residence time. The V3.1 feasible-region solver then scans coupled values of
         plasma electricity, total H₂ recovery, H₂-engine efficiency and heat recovery. It rejects points
         that fail the standard-state ΔH energy guard or the simple ΔG exergy guard before comparing them
         with the conventional gasoline efficiency and operating-cost benchmarks. Grid fractions are
-        deterministic search results, not probabilities. These remain screening equations only; V3.0
+        deterministic search results, not probabilities. These remain screening equations only; V3.1
         still does not solve non-equilibrium plasma kinetics, electron-energy distributions, sheath physics,
         detailed CFD, electrode erosion, radiative heat transfer, membrane selectivity, H₂/O₂ flammability
         management, startup energy or transient vehicle dynamics.
         """
     )
 
-st.caption("HPRS Automotive V3.0 · Advanced theoretical screening model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V3.1 · Pareto + prototype-target screening · Simulation → laboratory validation → proof of concept")
