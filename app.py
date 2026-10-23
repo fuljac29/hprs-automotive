@@ -90,7 +90,7 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.4</span>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V2.5</span>
       <h1>Plasma Carbon-Retention Engine</h1>
       <p>
         Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
@@ -112,9 +112,67 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <div class="horg-path-grid">
+
+      <div class="horg-path-card">
+        <h4>1 · Conventional gasoline engine</h4>
+        <p>
+          Gasoline is combusted directly in the ICE.
+          <strong>Reference benchmark</strong> for fuel use, shaft efficiency
+          and theoretical CO₂.
+        </p>
+      </div>
+
+      <div class="horg-path-card">
+        <h4>2 · Dry HPRS carbon-retention</h4>
+        <p>
+          C₈H₁₈ → 8 C(s) + 9 H₂.
+          Hydrogen feeds the engine while the model attempts to
+          <strong>retain carbon as a solid</strong>.
+        </p>
+      </div>
+
+      <div class="horg-path-card">
+        <h4>3 · Gasoline + water / steam</h4>
+        <p>
+          Separate gasoline and water feeds are vaporized before the reactor.
+          The model compares <strong>steam reforming / WGS</strong>,
+          hydrogen yield, water demand, CO/CO₂ and operating cost.
+        </p>
+      </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.info(
+    "Three hypotheses are compared in V2.5: conventional gasoline, dry HPRS "
+    "carbon-retention, and gasoline + water/steam. Water and gasoline are modeled "
+    "as separate feeds, not as a stable liquid blend in one tank."
+)
+
 with st.sidebar:
     st.header("Model assumptions")
     st.caption("Scenario inputs — not validated reactor performance.")
+
+    comparison_focus = st.radio(
+        "Comparison focus",
+        [
+            "Show all three pathways",
+            "Conventional gasoline",
+            "Dry HPRS carbon-retention",
+            "Gasoline + water / steam",
+        ],
+        index=0,
+        help=(
+            "This selector is for presentation focus. Core calculations remain "
+            "available so the three pathways can still be compared."
+        ),
+    )
+
 
     gross_engine_kw = st.slider(
         "Gross H₂-engine shaft power (kW)", 10, 250, 100, 5,
@@ -460,6 +518,8 @@ plasma_floor_shaft_burden_kw = (
     else math.inf
 )
 max_net_at_thermo_floor_kw = gross_engine_kw - plasma_floor_shaft_burden_kw
+
+st.caption(f"Current comparison focus: **{comparison_focus}**")
 
 st.subheader("Scenario result")
 
@@ -1146,7 +1206,7 @@ with st.expander("Ideal-floor cross-check for the selected target"):
     )
 
 
-st.subheader("Gasoline + Water / Steam-Assisted Comparison")
+st.subheader("Hypothesis 3 — Gasoline + Water / Steam-Assisted Comparison")
 
 st.caption(
     "Water and gasoline are modeled as separate feeds mixed after vaporization. "
@@ -1342,7 +1402,7 @@ else:
         "separated or otherwise handled before any vehicle exhaust claim can be made."
     )
 
-st.subheader("Conventional Engine Benchmark")
+st.subheader("Hypothesis 1 — Conventional Gasoline Engine Benchmark")
 st.caption("Same fuel reference. Same engine-scale comparison. Different carbon pathway.")
 
 b1, b2, b3, b4 = st.columns(4)
@@ -1413,7 +1473,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("Carbon-retention interpretation")
+st.subheader("Hypothesis 2 — Dry HPRS Carbon-Retention Interpretation")
 r1, r2, r3 = st.columns(3)
 r1.metric("Carbon collection", f"{carbon_capture*100:.0f}%")
 r2.metric("Captured carbon", f"{carbon_captured_kg_h:.1f} kg/h")
@@ -1479,4 +1539,4 @@ Pulse width is used to estimate instantaneous peak power and electrical duty cyc
         """
     )
 
-st.caption("HPRS Automotive V2.4 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive V2.5 · HydrogenOrg research model · Simulation → laboratory validation → proof of concept")
