@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="HPRS Automotive — Plasma Carbon-Retention Engine",
+    page_title="HPRS Automotive + Rail — Plasma Research Simulator",
     page_icon="⚛️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -73,7 +73,7 @@ O2_MOLAR = 31.998
 WATER_KG_PER_KG_H2_STOICH = WATER_MOLAR / H2_MOLAR
 O2_KG_PER_KG_H2_STOICH = O2_MOLAR / (2.0 * H2_MOLAR)
 
-# V3.1 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
+# V3.2 advanced HPRS-W thermodynamic references at 298.15 K, 1 bar.
 # NIST-JANAF water(l): Delta_f H deg = -285.830 kJ/mol,
 # Delta_f G deg = -237.141 kJ/mol. For H2O(l) -> H2(g) + 0.5 O2(g),
 # the water-splitting reaction therefore requires +285.830 kJ/mol enthalpy
@@ -110,6 +110,21 @@ DOE_PEM_2026_SYSTEM_KWH_KG_H2 = 51.0
 DOE_HTE_2026_ELECTRIC_KWH_KG_H2 = 36.0
 DOE_HTE_2026_TOTAL_KWH_KG_H2 = 44.0
 
+
+# V3.2 rail public guideposts — used only as contextual references, not calibration data.
+# Stadler FLIRT H2 (SBCTA): advertised range >460 km, max speed 127 km/h,
+# refuelling time <30 min, 116 seats; SBCTA duty is described as about 480–600 km/day.
+# The train uses a modular PowerPack with fuel cells, hydrogen tanks and batteries;
+# regenerative braking energy is stored in the traction batteries.
+RAIL_PUBLIC_RANGE_KM = 460.0
+RAIL_PUBLIC_MAX_SPEED_KMH = 127.0
+RAIL_PUBLIC_REFUEL_MIN = 30.0
+RAIL_PUBLIC_SEATS = 116
+RAIL_PUBLIC_DAILY_KM_LOW = 480.0
+RAIL_PUBLIC_DAILY_KM_HIGH = 600.0
+GRAVITY_M_S2 = 9.80665
+AIR_DENSITY_KG_M3 = 1.225
+
 st.markdown(
     """
     <style>
@@ -135,12 +150,12 @@ st.markdown(
 st.markdown(
     """
     <div class="horg-hero">
-      <span class="horg-kicker">HydrogenOrg · HPRS Automotive V3.1</span>
-      <h1>Plasma Carbon-Retention Engine</h1>
+      <span class="horg-kicker">HydrogenOrg · HPRS Automotive + Rail V3.2</span>
+      <h1>Plasma Mobility Research Simulator</h1>
       <p>
-        Research simulator for an onboard hydrocarbon-to-hydrogen pathway in which a gasoline
-        surrogate is decomposed before combustion, hydrogen feeds an H₂-capable internal-combustion
-        engine, and carbon is retained as a solid instead of intentionally oxidized to CO₂.
+        Research simulator for HPRS automotive pathways and a new rail application layer. The rail module
+        compares direct electric traction, stored-H₂ fuel-cell operation, depot HPRS-W hydrogen production
+        and the theoretical possibility of an onboard HPRS-W loop.
       </p>
       <span class="horg-chip">Research-stage model</span>
       <span class="horg-chip">n-octane surrogate</span>
@@ -149,6 +164,7 @@ st.markdown(
       <span class="horg-chip">Pulsed plasma control</span>
       <span class="horg-chip">Same-net-power normalization</span>
       <span class="horg-chip">HPRS-W plasma water splitting</span>
+      <span class="horg-chip">Rail mission + fuel-cell hybrid</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -205,10 +221,10 @@ st.markdown(
 )
 
 st.info(
-    "Four pathways are compared in V3.1: conventional gasoline, dry HPRS "
-    "carbon-retention, gasoline + water/steam, and HPRS-W plasma water splitting. "
-    "HPRS-W is evaluated with advanced thermodynamic/plasma diagnostics plus a coupled "
-    "feasible-region search that automatically rejects points failing the standard-state energy/exergy guards."
+    "Four automotive pathways are retained from V3.2, and a new rail layer evaluates a regional hydrogen train mission. "
+    "The rail module compares direct electric traction, purchased/stored H2 + fuel cell, depot HPRS-W + fuel cell, "
+    "and an onboard HPRS-W loop-closure diagnostic. Public FLIRT H2 values are shown only as guideposts; train mass, "
+    "route physics and component sizing remain editable scenario assumptions."
 )
 
 with st.sidebar:
@@ -256,7 +272,7 @@ with st.sidebar:
         step=5,
         help=(
             "All four pathways are rescaled to deliver this same net mechanical "
-            "shaft power. This is the primary apples-to-apples comparison in V3.1."
+            "shaft power. This is the primary apples-to-apples comparison in V3.2."
         ),
     )
 
@@ -557,7 +573,7 @@ with st.sidebar:
     ) / 100.0
 
     st.divider()
-    st.subheader("V3.1 advanced theory — HPRS-W")
+    st.subheader("V3.2 advanced theory — HPRS-W")
     st.caption(
         "Diagnostic-only physics inputs. These do not represent measured HydrogenOrg reactor data."
     )
@@ -725,7 +741,7 @@ with st.sidebar:
         )
 
     st.divider()
-    st.subheader("V3.1 feasible-region search")
+    st.subheader("V3.2 feasible-region search")
     st.caption(
         "Coupled search over plasma electricity, total H2 recovery, H2-engine efficiency "
         "and HPRS-W heat recovery. Standard-state thermodynamic guards are applied automatically."
@@ -750,7 +766,7 @@ with st.sidebar:
             value=(84, 98),
             step=1,
             help=(
-                "Lumped delivered/gross H2 recovery used only by the V3.1 search. It represents the "
+                "Lumped delivered/gross H2 recovery used only by the V3.2 search. It represents the "
                 "combined effect of species steering, quench survival and purification recovery."
             ),
         )
@@ -780,7 +796,7 @@ with st.sidebar:
         )
 
     st.divider()
-    st.subheader("V3.1 prototype-target screen")
+    st.subheader("V3.2 prototype-target screen")
     st.caption(
         "Prototype-oriented limits are engineering screening assumptions, not measured HydrogenOrg hardware limits. "
         "The standard-state ΔH/ΔG guards remain the thermodynamic constraints."
@@ -823,6 +839,107 @@ with st.sidebar:
             step=1,
             help="Upper cap to keep the first prototype target from depending on extreme heat recovery.",
         )
+
+    st.divider()
+    st.subheader("V3.2 rail application")
+    st.caption(
+        "Regional-train mission model for a fuel-cell/battery hybrid. Public FLIRT H2 values are context only; "
+        "mass, resistance, route, auxiliary load and component sizing below are scenario inputs."
+    )
+
+    rail_reference = st.radio(
+        "Rail reference view",
+        [
+            "Stadler FLIRT H₂ public guideposts",
+            "Generic regional H₂ multiple unit",
+        ],
+        index=0,
+        help=(
+            "The Stadler option displays public guideposts (>460 km advertised range, 127 km/h, <30 min refuelling, "
+            "116 seats, and an SBCTA duty description of roughly 480–600 km/day). It does not populate proprietary train data."
+        ),
+    )
+
+    with st.expander("Rail mission, vehicle and hybrid-system inputs", expanded=False):
+        rail_mission_km = st.number_input(
+            "Mission distance (km)", 10.0, 1000.0, 100.0, 10.0,
+            help="Distance for one modeled mission segment.",
+        )
+        rail_daily_km = st.number_input(
+            "Daily distance (km/day)", 10.0, 2000.0, 500.0, 10.0,
+            help="Used to estimate daily hydrogen, electricity and water demand.",
+        )
+        rail_mass_t = st.number_input(
+            "Train operating mass (t) — scenario", 40.0, 500.0, 120.0, 5.0,
+            help="Editable engineering assumption; not a public FLIRT H2 mass specification.",
+        )
+        rail_cruise_speed_kmh = st.slider(
+            "Cruise speed for resistance calculation (km/h)", 30, 160, 100, 5,
+        )
+        rail_average_speed_kmh = st.slider(
+            "Average mission speed incl. stops (km/h)", 20, 140, 65, 5,
+        )
+        rail_accel_speed_kmh = st.slider(
+            "Acceleration/braking cycle speed (km/h)", 30, 140, 80, 5,
+            help="Representative speed reached between station stops for the kinetic-energy cycle model.",
+        )
+        rail_accel_m_s2 = st.slider(
+            "Peak acceleration assumption (m/s²)", 0.2, 1.2, 0.6, 0.05,
+        )
+        rail_stops_per_100km = st.slider(
+            "Station stops per 100 km", 0, 30, 8, 1,
+        )
+        rail_elevation_gain_m_per_100km = st.number_input(
+            "Positive elevation gain per 100 km (m)", 0.0, 3000.0, 300.0, 50.0,
+            help="A matching descent is assumed for the regenerative-energy estimate.",
+        )
+        rail_crr = st.number_input(
+            "Rolling-resistance coefficient", 0.0005, 0.0050, 0.0015, 0.0001, format="%.4f",
+            help="First-order rolling-resistance assumption for the whole train.",
+        )
+        rail_cda_m2 = st.number_input(
+            "Aerodynamic CdA (m²) — scenario", 2.0, 30.0, 8.0, 0.5,
+            help="Combined drag coefficient × frontal area used in the simple steady-speed resistance model.",
+        )
+        rail_drive_eff = st.slider(
+            "DC-bus to wheel efficiency (%)", 75, 98, 92, 1,
+        ) / 100.0
+        rail_regen_eff = st.slider(
+            "End-to-end regenerative recovery (%)", 0, 90, 70, 5,
+            help="Net fraction of braking/downhill mechanical energy returned to the electrical bus after losses.",
+        ) / 100.0
+        rail_aux_kw = st.number_input(
+            "Average auxiliaries / HVAC load (kW)", 0.0, 500.0, 80.0, 10.0,
+        )
+
+        st.markdown("##### Fuel-cell + battery hybrid")
+        rail_fc_eff = st.slider(
+            "Fuel-cell system efficiency, H₂ LHV → DC bus (%)", 30, 65, 45, 1,
+            help=(
+                "Editable duty-cycle assumption. A DOE hydrail workshop cites typical duty-cycle primary-powertrain "
+                "fuel-cell system efficiency around 45% and potentially higher; use route-specific measured data when available."
+            ),
+        ) / 100.0
+        rail_fc_nominal_kw = st.number_input(
+            "Fuel-cell net nominal power (kW)", 50.0, 3000.0, 400.0, 25.0,
+            help="Scenario value. The battery is assumed to buffer short traction peaks above this level.",
+        )
+        rail_battery_usable_kwh = st.number_input(
+            "Usable traction-battery energy (kWh)", 10.0, 3000.0, 250.0, 10.0,
+            help="Scenario buffer capacity; no Stadler proprietary battery capacity is assumed.",
+        )
+        rail_h2_storage_kg = st.number_input(
+            "Usable onboard H₂ storage (kg)", 10.0, 2000.0, 120.0, 10.0,
+            help="Scenario storage mass used only to estimate range.",
+        )
+        rail_delivered_h2_price_chf_kg = st.number_input(
+            "Delivered hydrogen price (CHF/kg)", 0.0, 40.0, 10.0, 0.5,
+            help="Editable comparison price for externally produced and delivered hydrogen.",
+        )
+        rail_grid_to_dc_eff = st.slider(
+            "Direct electric grid/catenary → DC-bus efficiency (%)", 75, 99, 94, 1,
+            help="Reference pathway for direct electric operation or battery charging.",
+        ) / 100.0
 
     st.divider()
     st.subheader("Operating-cost inputs")
@@ -1031,7 +1148,7 @@ steam_water_makeup_kg_h = (
 # First-order density assumption for make-up water: 1 kg ~ 1 L.
 steam_water_makeup_l_h = steam_water_makeup_kg_h
 
-# V3.1 keeps steam-route thermal and electrical process energy separate.
+# V3.2 keeps steam-route thermal and electrical process energy separate.
 steam_thermal_gross_kw = (
     steam_h2_gross_kg_h
     * steam_thermal_energy
@@ -1253,7 +1370,7 @@ hprsw_closed_loop_margin_kwh_per_kg = (
 )
 
 # ============================================================
-# V3.1 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
+# V3.2 FOUR-PATHWAY SAME-NET-POWER NORMALIZATION
 # ============================================================
 
 comparison_net_kw = float(normalized_target_kw)
@@ -1485,7 +1602,7 @@ norm_hprsw_total_eff = (
 )
 
 # ============================================================
-# V3.1 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
+# V3.2 ADVANCED THEORETICAL HPRS-W DIAGNOSTICS
 # ============================================================
 
 # 1) Standard-state water-splitting thermodynamics and simple exergy view.
@@ -1705,7 +1822,7 @@ else:
     hprsw_break_even_electricity_price_chf_kwh = math.inf
 
 # ============================================================
-# V3.1 MULTI-PARAMETER FEASIBLE-REGION SOLVER
+# V3.2 MULTI-PARAMETER FEASIBLE-REGION SOLVER
 # ============================================================
 # This deterministic grid scan varies four coupled HPRS-W levers together:
 # plasma electricity, total delivered/gross H2 recovery, H2-engine brake
@@ -1715,7 +1832,7 @@ else:
 #   1) total external energy >= Delta H (thermoneutral reference), and
 #   2) external exergy >= Delta G (reversible-work reference).
 # External heat exergy is approximated with the same Carnot factor used in the
-# V3.1 advanced exergy diagnostic. These guards do not replace temperature-
+# V3.2 advanced exergy diagnostic. These guards do not replace temperature-
 # dependent equilibrium or non-equilibrium plasma chemistry.
 
 def _v29_linspace(lo, hi, n):
@@ -1910,7 +2027,7 @@ v29_lowest_cost_dual_candidate = (
 
 
 # ============================================================
-# V3.1 PARETO-FRONTIER ANALYSIS
+# V3.2 PARETO-FRONTIER ANALYSIS
 # ============================================================
 # Primary Pareto definition:
 #   - maximize screened total-energy-to-shaft efficiency
@@ -2043,7 +2160,7 @@ v30_dual_pareto_count = len(v30_dual_pareto_points)
 
 
 # ============================================================
-# V3.1 PROTOTYPE-ORIENTED TARGET SCREEN
+# V3.2 PROTOTYPE-ORIENTED TARGET SCREEN
 # ============================================================
 # This is deliberately a second-stage engineering screen layered on top of
 # the thermodynamic guards. The limits below are user-selectable and are not
@@ -2135,7 +2252,7 @@ v31_prototype_break_even_electricity_price = _v31_break_even_electricity_price(
     v31_prototype_display_target
 )
 
-# Current selected HPRS-W point under the same V3.1 guards.
+# Current selected HPRS-W point under the same V3.2 guards.
 v29_current_total_energy = hprsw_total_external_energy_per_gross_h2
 v29_current_external_exergy = hprsw_external_exergy_per_gross_h2
 v29_current_shaft_per_gross_h2 = H2_LHV_KWH_KG * engine_eff * hprsw_recovery_chain
@@ -3103,7 +3220,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V3.1 Advanced Theoretical Analysis — HPRS-W")
+st.subheader("V3.2 Advanced Theoretical Analysis — HPRS-W")
 st.caption(
     "These diagnostics are first-order theoretical calculations. They do not solve plasma kinetics, "
     "non-equilibrium chemistry, sheath physics, detailed CFD or electrode erosion."
@@ -3304,7 +3421,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("#### 6 · V3.1 multi-parameter feasible region")
+st.markdown("#### 6 · V3.2 multi-parameter feasible region")
 
 st.caption(
     "The grid below changes plasma electricity, total H2 recovery, H2-engine efficiency "
@@ -3343,7 +3460,7 @@ st.markdown(
     <b>Current selected HPRS-W point:</b> {', '.join(current_status_parts)}.<br>
     Current screened total-energy-to-shaft efficiency = <b>{100*v29_current_system_eff:.1f}%</b>;
     conventional benchmark = <b>{100*conventional_eff:.1f}%</b>.<br><br>
-    <b>Thermodynamic guards used by V3.1:</b>
+    <b>Thermodynamic guards used by V3.2:</b>
     total external energy must be at least <b>{WATER_SPLIT_THERMONEUTRAL_KWH_PER_KG_H2:.2f} kWh/kg H2</b>
     and modeled external exergy must be at least <b>{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H2</b>.
     The heat-exergy contribution uses the selected heat-source temperature through a simple Carnot factor.
@@ -3416,16 +3533,16 @@ if v29_energy_competitive_points:
         )
 else:
     st.error(
-        "No energy-competitive point was found inside the selected V3.1 search ranges after applying "
+        "No energy-competitive point was found inside the selected V3.2 search ranges after applying "
         "the standard-state energy and exergy guards. Expand the search ranges or improve the assumed architecture."
     )
 
 
 # ============================================================
-# V3.1 PARETO FRONTIER — DECISION VIEW
+# V3.2 PARETO FRONTIER — DECISION VIEW
 # ============================================================
 
-st.markdown("#### 7 · V3.1 Pareto Frontier — efficiency, cost and research stretch")
+st.markdown("#### 7 · V3.2 Pareto Frontier — efficiency, cost and research stretch")
 
 st.caption(
     "The primary frontier below uses only two objectives: maximize screened system efficiency and minimize "
@@ -3478,7 +3595,7 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
                 "System efficiency %": 100.0 * v31_prototype_display_target["system_eff"],
                 "Plasma kWh/kg H2": v31_prototype_display_target["plasma"],
                 "Research stretch %": 100.0 * v31_prototype_display_target["balanced_stretch"],
-                "Set": "V3.1 prototype target",
+                "Set": "V3.2 prototype target",
             }
         )
 
@@ -3535,7 +3652,7 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
         if _row is not None:
             _v30_decision_rows.append(_row)
 
-    st.markdown("##### Representative V3.1 decision points")
+    st.markdown("##### Representative V3.2 decision points")
     st.dataframe(_v30_decision_rows, use_container_width=True, hide_index=True)
 
     if v30_knee_point is not None:
@@ -3574,7 +3691,7 @@ if v29_thermo_points and v30_cost_eff_pareto_points:
                 "Research stretch %": 100.0 * v31_prototype_display_target["balanced_stretch"],
                 "System efficiency %": 100.0 * v31_prototype_display_target["system_eff"],
                 "Plasma kWh/kg H2": v31_prototype_display_target["plasma"],
-                "Set": "V3.1 prototype target",
+                "Set": "V3.2 prototype target",
             }
         )
 
@@ -3600,10 +3717,10 @@ else:
     )
 
 # ============================================================
-# V3.1 PROTOTYPE TARGET — CONSTRAINED ENGINEERING VIEW
+# V3.2 PROTOTYPE TARGET — CONSTRAINED ENGINEERING VIEW
 # ============================================================
 
-st.markdown("#### 8 · V3.1 Prototype Target — constrained engineering screen")
+st.markdown("#### 8 · V3.2 Prototype Target — constrained engineering screen")
 
 st.caption(
     "This view intentionally limits the search to a more conservative first-prototype envelope. "
@@ -3670,7 +3787,7 @@ _v31_rows = [_v31_comparison_row("Current selected HPRS-W", None, current=True)]
 if v31_prototype_display_target is not None:
     _v31_rows.append(
         _v31_comparison_row(
-            "V3.1 Prototype Target" if v31_prototype_target is not None else "Best point inside prototype screen",
+            "V3.2 Prototype Target" if v31_prototype_target is not None else "Best point inside prototype screen",
             v31_prototype_display_target,
         )
     )
@@ -3711,7 +3828,7 @@ elif v31_prototype_best_available is not None:
 else:
     st.error(
         "The current prototype-oriented constraints contain no thermodynamically feasible grid point. "
-        "Relax one or more prototype-screen limits or widen the V3.1 feasible-region search ranges."
+        "Relax one or more prototype-screen limits or widen the V3.2 feasible-region search ranges."
     )
 
 if v31_prototype_dual_target is not None:
@@ -3731,7 +3848,7 @@ else:
 st.markdown(
     f"""
     <div class="horg-callout">
-    <b>V3.1 interpretation boundary:</b> a grid point marked feasible is only feasible within this
+    <b>V3.2 interpretation boundary:</b> a grid point marked feasible is only feasible within this
     lumped screening model. The scan does not solve temperature-dependent Gibbs equilibrium,
     electron-energy distributions, detailed H/O/OH kinetics, sheath fields, CFD, electrode erosion,
     membrane selectivity, H2/O2 flammability management, transient control or capital cost.
@@ -3741,7 +3858,298 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.subheader("V3.1 Scientific Comparison — Same Net Shaft Power")
+
+# ============================================================
+# V3.2 RAIL APPLICATION — REGIONAL H2 TRAIN / HPRS-W
+# ============================================================
+
+st.markdown("---")
+st.subheader("V3.2 Rail Application — HPRS-W for a regional hydrogen train")
+st.caption(
+    "The rail layer keeps the train electrically driven. It asks where the hydrogen comes from and whether HPRS-W "
+    "is better treated as a depot hydrogen-production process or as an onboard reactor. Public FLIRT H2 figures are "
+    "contextual guideposts only; the route/vehicle physics below are user-selected first-order assumptions."
+)
+
+# First-order route physics.
+rail_mass_kg = rail_mass_t * 1000.0
+rail_distance_m = rail_mission_km * 1000.0
+rail_cruise_v_m_s = rail_cruise_speed_kmh / 3.6
+rail_accel_v_m_s = rail_accel_speed_kmh / 3.6
+rail_trip_h = rail_mission_km / max(rail_average_speed_kmh, 1e-9)
+
+rail_roll_force_n = rail_mass_kg * GRAVITY_M_S2 * rail_crr
+rail_aero_force_n = 0.5 * AIR_DENSITY_KG_M3 * rail_cda_m2 * rail_cruise_v_m_s ** 2
+rail_steady_wheel_kwh = (rail_roll_force_n + rail_aero_force_n) * rail_distance_m / 3.6e6
+
+rail_elevation_gain_m = rail_elevation_gain_m_per_100km * rail_mission_km / 100.0
+rail_climb_wheel_kwh = rail_mass_kg * GRAVITY_M_S2 * rail_elevation_gain_m / 3.6e6
+rail_descent_recovered_kwh = rail_climb_wheel_kwh * rail_regen_eff
+
+rail_cycle_count = max(1.0, rail_stops_per_100km * rail_mission_km / 100.0)
+rail_kinetic_per_cycle_kwh = 0.5 * rail_mass_kg * rail_accel_v_m_s ** 2 / 3.6e6
+rail_accel_wheel_kwh = rail_cycle_count * rail_kinetic_per_cycle_kwh
+rail_brake_recovered_kwh = rail_accel_wheel_kwh * rail_regen_eff
+
+rail_positive_wheel_kwh = rail_steady_wheel_kwh + rail_climb_wheel_kwh + rail_accel_wheel_kwh
+rail_recovered_dc_kwh = rail_descent_recovered_kwh + rail_brake_recovered_kwh
+rail_traction_dc_kwh = max(rail_positive_wheel_kwh / max(rail_drive_eff, 1e-9) - rail_recovered_dc_kwh, 0.0)
+rail_aux_kwh = rail_aux_kw * rail_trip_h
+rail_dc_bus_kwh = rail_traction_dc_kwh + rail_aux_kwh
+rail_dc_kwh_per_km = rail_dc_bus_kwh / max(rail_mission_km, 1e-9)
+rail_avg_dc_kw = rail_dc_bus_kwh / max(rail_trip_h, 1e-9)
+
+# Peak traction/battery support proxy.
+rail_resist_force_at_accel_n = rail_mass_kg * GRAVITY_M_S2 * rail_crr + 0.5 * AIR_DENSITY_KG_M3 * rail_cda_m2 * rail_accel_v_m_s ** 2
+rail_peak_wheel_kw = (rail_mass_kg * rail_accel_m_s2 + rail_resist_force_at_accel_n) * rail_accel_v_m_s / 1000.0
+rail_peak_dc_kw = rail_peak_wheel_kw / max(rail_drive_eff, 1e-9) + rail_aux_kw
+rail_battery_peak_support_kw = max(rail_peak_dc_kw - rail_fc_nominal_kw, 0.0)
+rail_battery_support_min = (
+    rail_battery_usable_kwh / rail_battery_peak_support_kw * 60.0
+    if rail_battery_peak_support_kw > 0 else math.inf
+)
+
+# Stored-H2 + fuel-cell baseline.
+rail_h2_mission_kg = rail_dc_bus_kwh / max(rail_fc_eff * H2_LHV_KWH_KG, 1e-9)
+rail_h2_kg_per_km = rail_h2_mission_kg / max(rail_mission_km, 1e-9)
+rail_h2_daily_kg = rail_h2_kg_per_km * rail_daily_km
+rail_storage_range_km = rail_h2_storage_kg / max(rail_h2_kg_per_km, 1e-12)
+rail_h2_cost_mission_chf = rail_h2_mission_kg * rail_delivered_h2_price_chf_kg
+rail_h2_cost_per_km = rail_h2_cost_mission_chf / max(rail_mission_km, 1e-9)
+rail_h2_tank_energy_kwh_per_km = rail_h2_kg_per_km * H2_LHV_KWH_KG
+
+# Direct electric/catenary reference.
+rail_direct_external_kwh = rail_dc_bus_kwh / max(rail_grid_to_dc_eff, 1e-9)
+rail_direct_external_kwh_per_km = rail_direct_external_kwh / max(rail_mission_km, 1e-9)
+rail_direct_cost_chf = rail_direct_external_kwh * electricity_price_chf_kwh
+rail_direct_cost_per_km = rail_direct_cost_chf / max(rail_mission_km, 1e-9)
+
+# HPRS-W depot production using the currently selected reactor assumptions.
+rail_hprsw_gross_h2_kg = rail_h2_mission_kg / max(hprsw_recovery_chain, 1e-12)
+rail_hprsw_electric_kwh = rail_hprsw_gross_h2_kg * hprsw_plasma_electricity
+rail_hprsw_external_heat_kwh = rail_hprsw_gross_h2_kg * hprsw_steam_preheat * (1.0 - hprsw_heat_recovery)
+rail_hprsw_total_external_kwh = rail_hprsw_electric_kwh + rail_hprsw_external_heat_kwh
+rail_hprsw_external_kwh_per_km = rail_hprsw_total_external_kwh / max(rail_mission_km, 1e-9)
+
+rail_hprsw_water_per_gross_h2 = (
+    WATER_KG_PER_KG_H2_STOICH
+    + WATER_KG_PER_KG_H2_STOICH * max(hprsw_steam_excess - 1.0, 0.0) * (1.0 - hprsw_excess_steam_recycle)
+)
+rail_hprsw_water_mission_l = rail_hprsw_gross_h2_kg * rail_hprsw_water_per_gross_h2
+rail_hprsw_o2_mission_kg = rail_hprsw_gross_h2_kg * O2_KG_PER_KG_H2_STOICH * hprsw_o2_recovery
+rail_hprsw_argon_makeup_kg = rail_hprsw_gross_h2_kg * hprsw_argon_circulation * (1.0 - hprsw_argon_recovery)
+
+rail_hprsw_cost_mission_chf = max(
+    0.0,
+    rail_hprsw_electric_kwh * electricity_price_chf_kwh
+    + rail_hprsw_external_heat_kwh * thermal_energy_price_chf_kwh
+    + rail_hprsw_water_mission_l / 1000.0 * water_price_chf_m3
+    + rail_hprsw_argon_makeup_kg * argon_price_chf_kg
+    - rail_hprsw_o2_mission_kg * oxygen_value_chf_kg,
+)
+rail_hprsw_cost_per_km = rail_hprsw_cost_mission_chf / max(rail_mission_km, 1e-9)
+rail_hprsw_chain_eff_dc = rail_dc_bus_kwh / max(rail_hprsw_total_external_kwh, 1e-12)
+
+# HPRS-W break-even electricity price versus purchased H2 for the same train mission.
+rail_hprsw_non_electric_cost_chf = (
+    rail_hprsw_external_heat_kwh * thermal_energy_price_chf_kwh
+    + rail_hprsw_water_mission_l / 1000.0 * water_price_chf_m3
+    + rail_hprsw_argon_makeup_kg * argon_price_chf_kg
+    - rail_hprsw_o2_mission_kg * oxygen_value_chf_kg
+)
+rail_hprsw_break_even_elec_price = (
+    (rail_h2_cost_mission_chf - rail_hprsw_non_electric_cost_chf) / rail_hprsw_electric_kwh
+    if rail_hprsw_electric_kwh > 0 else math.inf
+)
+
+# Onboard HPRS-W loop-closure diagnostic: fuel-cell DC output per delivered kg H2 versus
+# the selected HPRS-W external process energy per delivered kg H2.
+rail_fc_dc_per_delivered_h2 = H2_LHV_KWH_KG * rail_fc_eff
+rail_hprsw_process_energy_per_delivered_h2 = hprsw_total_external_energy_per_delivered_h2
+rail_onboard_loop_margin_kwh_per_kg = rail_fc_dc_per_delivered_h2 - rail_hprsw_process_energy_per_delivered_h2
+rail_onboard_loop_ratio = (
+    rail_fc_dc_per_delivered_h2 / rail_hprsw_process_energy_per_delivered_h2
+    if rail_hprsw_process_energy_per_delivered_h2 > 0 else math.inf
+)
+
+# Prototype-oriented HPRS-W rail projection using the V3.2 target if one exists.
+rail_proto_chain_eff = None
+rail_proto_total_external_per_delivered = None
+if v31_prototype_display_target is not None:
+    _rp = v31_prototype_display_target
+    rail_proto_total_external_per_delivered = _rp["total_energy"] / max(_rp["recovery"], 1e-12)
+    rail_proto_chain_eff = H2_LHV_KWH_KG * rail_fc_eff / max(rail_proto_total_external_per_delivered, 1e-12)
+
+if rail_reference == "Stadler FLIRT H₂ public guideposts":
+    st.info(
+        f"Public FLIRT H₂ guideposts: advertised range >{RAIL_PUBLIC_RANGE_KM:.0f} km, maximum speed "
+        f"{RAIL_PUBLIC_MAX_SPEED_KMH:.0f} km/h, refuelling <{RAIL_PUBLIC_REFUEL_MIN:.0f} min, {RAIL_PUBLIC_SEATS} seats. "
+        f"Stadler describes the SBCTA service case as roughly {RAIL_PUBLIC_DAILY_KM_LOW:.0f}–{RAIL_PUBLIC_DAILY_KM_HIGH:.0f} km/day. "
+        "These values are context only; the model does not infer proprietary H2 storage mass, train mass, fuel-cell power or battery capacity."
+    )
+
+st.markdown("#### 9 · Rail mission energy and hybrid sizing")
+rm1, rm2, rm3, rm4 = st.columns(4)
+rm1.metric("Mission DC-bus energy", f"{rail_dc_bus_kwh:.0f} kWh")
+rm2.metric("Electrical intensity", f"{rail_dc_kwh_per_km:.2f} kWh/km")
+rm3.metric("Average DC demand", f"{rail_avg_dc_kw:.0f} kW")
+rm4.metric("Peak DC-power proxy", f"{rail_peak_dc_kw:.0f} kW")
+
+rm5, rm6, rm7, rm8 = st.columns(4)
+rm5.metric("Stored-H₂ need", f"{rail_h2_mission_kg:.1f} kg / mission")
+rm6.metric("H₂ intensity", f"{rail_h2_kg_per_km:.3f} kg/km")
+rm7.metric("Scenario range from H₂ storage", f"{rail_storage_range_km:.0f} km")
+rm8.metric("Daily H₂ at selected duty", f"{rail_h2_daily_kg:.1f} kg/day")
+
+st.markdown(
+    f"""
+    <div class="horg-note">
+    <b>Hybrid interpretation:</b> selected fuel-cell nominal power = <b>{rail_fc_nominal_kw:.0f} kW</b>.
+    The first-order acceleration calculation gives a peak DC demand of <b>{rail_peak_dc_kw:.0f} kW</b>, so the battery
+    would buffer about <b>{rail_battery_peak_support_kw:.0f} kW</b> of short-duration peak power under this scenario.
+    The selected usable battery energy of <b>{rail_battery_usable_kwh:.0f} kWh</b> corresponds to about
+    <b>{rail_battery_support_min:.1f} min</b> at that full peak-support level
+    {'' if math.isfinite(rail_battery_support_min) else '(no peak support required at the selected fuel-cell rating)'}.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("#### 10 · Rail architecture comparison")
+rail_compare_rows = [
+    {
+        "Rail pathway": "Direct electric / catenary or battery charge",
+        "External / tank energy (kWh/km)": rail_direct_external_kwh_per_km,
+        "H2 (kg/km)": 0.0,
+        "Modeled operating energy cost (CHF/km)": rail_direct_cost_per_km,
+        "Water makeup (L/km)": 0.0,
+        "Point-of-use CO2": "0 in modeled electric traction",
+    },
+    {
+        "Rail pathway": "Stored H2 + fuel cell/battery",
+        "External / tank energy (kWh/km)": rail_h2_tank_energy_kwh_per_km,
+        "H2 (kg/km)": rail_h2_kg_per_km,
+        "Modeled operating energy cost (CHF/km)": rail_h2_cost_per_km,
+        "Water makeup (L/km)": 0.0,
+        "Point-of-use CO2": "0 direct",
+    },
+    {
+        "Rail pathway": "Depot HPRS-W -> H2 -> fuel cell/battery",
+        "External / tank energy (kWh/km)": rail_hprsw_external_kwh_per_km,
+        "H2 (kg/km)": rail_h2_kg_per_km,
+        "Modeled operating energy cost (CHF/km)": rail_hprsw_cost_per_km,
+        "Water makeup (L/km)": rail_hprsw_water_mission_l / max(rail_mission_km, 1e-9),
+        "Point-of-use CO2": "0 direct; upstream depends on electricity/heat",
+    },
+]
+rail_compare_df = pd.DataFrame(rail_compare_rows)
+st.dataframe(
+    rail_compare_df.style.format({
+        "External / tank energy (kWh/km)": "{:.2f}",
+        "H2 (kg/km)": "{:.3f}",
+        "Modeled operating energy cost (CHF/km)": "{:.2f}",
+        "Water makeup (L/km)": "{:.3f}",
+    }),
+    use_container_width=True,
+    hide_index=True,
+)
+
+rc1, rc2 = st.columns(2)
+with rc1:
+    st.markdown("##### Input-energy comparison")
+    _rail_energy_chart = pd.DataFrame({
+        "Pathway": ["Direct electric", "Stored H2", "Depot HPRS-W"],
+        "kWh input / train-km": [rail_direct_external_kwh_per_km, rail_h2_tank_energy_kwh_per_km, rail_hprsw_external_kwh_per_km],
+    }).set_index("Pathway")
+    st.bar_chart(_rail_energy_chart, height=320)
+with rc2:
+    st.markdown("##### Modeled energy-cost comparison")
+    _rail_cost_chart = pd.DataFrame({
+        "Pathway": ["Direct electric", "Stored H2", "Depot HPRS-W"],
+        "CHF / train-km": [rail_direct_cost_per_km, rail_h2_cost_per_km, rail_hprsw_cost_per_km],
+    }).set_index("Pathway")
+    st.bar_chart(_rail_cost_chart, height=320)
+
+st.markdown("#### 11 · HPRS-W rail diagnosis")
+rd1, rd2, rd3, rd4 = st.columns(4)
+rd1.metric("Depot HPRS-W external energy", f"{rail_hprsw_external_kwh_per_km:.2f} kWh/km")
+rd2.metric("HPRS-W -> fuel-cell DC efficiency", f"{100*rail_hprsw_chain_eff_dc:.1f}%")
+rd3.metric("HPRS-W water makeup", f"{rail_hprsw_water_mission_l/rail_mission_km:.3f} L/km")
+rd4.metric(
+    "HPRS-W electricity break-even vs bought H₂",
+    f"CHF {rail_hprsw_break_even_elec_price:.3f}/kWh" if math.isfinite(rail_hprsw_break_even_elec_price) else "—",
+)
+
+if rail_onboard_loop_margin_kwh_per_kg >= 0:
+    st.success(
+        f"Onboard loop diagnostic: fuel-cell DC output is {rail_fc_dc_per_delivered_h2:.1f} kWh per delivered kg H2, "
+        f"while the selected HPRS-W process requires {rail_hprsw_process_energy_per_delivered_h2:.1f} kWh/kg delivered. "
+        f"The simple energy margin is +{rail_onboard_loop_margin_kwh_per_kg:.1f} kWh/kg before auxiliaries. "
+        "This still would not demonstrate a self-sustaining reactor; transient and thermodynamic coupling would require dedicated validation."
+    )
+else:
+    st.error(
+        f"Onboard self-powered loop does not close at the selected assumptions: the fuel cell returns about "
+        f"{rail_fc_dc_per_delivered_h2:.1f} kWh DC per delivered kg H2, while HPRS-W requires about "
+        f"{rail_hprsw_process_energy_per_delivered_h2:.1f} kWh external energy per delivered kg. "
+        f"Margin = {rail_onboard_loop_margin_kwh_per_kg:.1f} kWh/kg; output/input ratio = {rail_onboard_loop_ratio:.2f}. "
+        "For a rail prototype, the scientifically cleaner first architecture is therefore depot HPRS-W feeding an existing fuel-cell/battery PowerPack, "
+        "or an onboard reactor supplied by a genuinely external source such as catenary/grid energy."
+    )
+
+if rail_proto_chain_eff is not None:
+    st.info(
+        f"Using the V3.2 prototype-oriented HPRS-W target instead of the current reactor point, the modeled external-to-fuel-cell-DC "
+        f"chain efficiency would rise to about {100*rail_proto_chain_eff:.1f}% at the selected {100*rail_fc_eff:.0f}% fuel-cell efficiency. "
+        f"That target still requires laboratory validation and is not a Stadler performance claim."
+    )
+
+st.markdown(
+    f"""
+    <div class="horg-callout">
+    <b>Rail model boundary:</b> this is not a longitudinal train-dynamics, timetable or homologation model. It uses simple rolling and aerodynamic resistance,
+    an equivalent positive elevation gain, repeated acceleration/braking cycles, an average auxiliary load and user-selected drivetrain efficiencies.
+    It does not include wheel/rail adhesion limits, detailed gradients/curves, passenger load variation, compressor losses, H2 storage thermal behavior,
+    fuel-cell degradation, battery SOC control, HVAC transients, redundancy, fire safety, crash requirements, capital cost or maintenance.
+    Public Stadler values are contextual guideposts only. A partner study should replace the scenario inputs with route and PowerPack data supplied by the rail OEM.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+with st.expander("Rail public references and model equations"):
+    st.markdown(
+        f"""
+        **Public FLIRT H2 guideposts**  
+        Stadler states for the SBCTA FLIRT H2: range **> {RAIL_PUBLIC_RANGE_KM:.0f} km**, maximum speed **{RAIL_PUBLIC_MAX_SPEED_KMH:.0f} km/h**,
+        refuelling **< {RAIL_PUBLIC_REFUEL_MIN:.0f} min**, and **{RAIL_PUBLIC_SEATS} seats**. The SBCTA reference page describes up to 16 trips/day and
+        roughly **{RAIL_PUBLIC_DAILY_KM_LOW:.0f}–{RAIL_PUBLIC_DAILY_KM_HIGH:.0f} km/day**. The PowerPack uses modular fuel cells, H2 tanks and batteries,
+        with regenerative braking stored in the traction batteries.
+
+        Sources:  
+        - https://www.stadlerrail.com/en/solutions/rolling-stock/mainline-flirt-h2  
+        - https://www.stadlerrail.com/en/solutions/references/flirt-h2-sbcta  
+        - https://www.stadlerrail.com/api/docs/x/cede610cde/flirt-h2_sbcta_en.pdf
+
+        **Fuel-cell efficiency context**  
+        A U.S. DOE hydrail workshop presentation cites typical duty-cycle primary-powertrain fuel-cell system efficiency around **45% and higher possible**,
+        with additional fuel reduction possible from regenerative braking. This is used only to motivate the editable default, not as a Stadler specification.
+
+        Source:  
+        - https://www.energy.gov/documents/fcto-h2-rail-workshop-2019-hoffrichterpdf
+
+        **First-order equations**  
+        `F_roll = m g Crr`  
+        `F_aero = 0.5 rho CdA v^2`  
+        `E_accel = 0.5 m v^2`  
+        `E_climb = m g h`  
+        `H2 = E_DC / (eta_FC * LHV_H2)`  
+        `HPRS-W depot energy = H2_delivered * HPRS-W external energy per delivered kg H2`
+        """
+    )
+
+
+st.subheader("V3.2 Scientific Comparison — Same Net Shaft Power")
 
 st.caption(
     f"All four pathways below are normalized to the same useful mechanical output: "
@@ -3901,7 +4309,7 @@ st.dataframe(
 st.markdown(
     f"""
     <div class="horg-note">
-    <b>How to read V3.1:</b><br>
+    <b>How to read V3.2:</b><br>
     • Conventional gasoline is the reference at the same {comparison_net_kw:.0f} kW net.<br>
     • Dry HPRS includes its onboard plasma electrical burden through increased fuel demand.
       The displayed electrical value is the remaining plasma electricity after the selected
@@ -3955,7 +4363,7 @@ st.markdown(
     Ideal H₂ yield: <b>{steam_h2_yield_kg_per_kg_fuel:.3f} kg H₂/kg fuel</b>.<br>
     Stoichiometric gross water feed:
     <b>{steam_water_kg_per_kg_fuel:.3f} kg H₂O/kg fuel</b> before any recycle.<br>
-    The thermal and electrical process inputs are separated in V3.1. The reaction-enthalpy
+    The thermal and electrical process inputs are separated in V3.2. The reaction-enthalpy
     reference is only an ideal thermodynamic reference and does not represent complete hardware losses.
     </div>
     """,
@@ -4082,14 +4490,14 @@ with st.expander("Model basis and references"):
 
         **Design-target diagnosis**
 
-        The V3.1 design diagnosis varies one lever at a time and solves the
+        The V3.2 design diagnosis varies one lever at a time and solves the
         simplified balance backwards for the selected net-power target.
         It can estimate the required gross engine power, H₂-engine efficiency,
         recovered-energy offset, or plasma specific electricity. A value being
         mathematically reachable in the model is not evidence that the required
         hardware performance is experimentally achievable.
 
-        **V3.1 four-pathway same-net-power normalization**
+        **V3.2 four-pathway same-net-power normalization**
 
         The primary comparison rescales all four pathways to the same selected net shaft power.  
         Dry-HPRS plasma electricity is treated as an onboard parasitic load.  
@@ -4147,7 +4555,7 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://www.energy.gov/cmei/fuels/technical-targets-proton-exchange-membrane-electrolysis
         - https://stage.energy.gov/cmei/fuels/technical-targets-high-temperature-electrolysis
 
-        **V3.1 standard-state thermodynamic references**
+        **V3.2 standard-state thermodynamic references**
 
         NIST-JANAF water(l), 298.15 K, 1 bar:
         - reaction Gibbs requirement: **{WATER_SPLIT_REV_KWH_PER_KG_H2:.2f} kWh/kg H₂**
@@ -4159,19 +4567,20 @@ with st.expander("HPRS-W model basis and benchmark references"):
         - https://janaf.nist.gov/tables/H-063.html
         - https://www.hydrogen.energy.gov/docs/hydrogenprogramlibraries/pdfs/46676.pdf
 
-        **V3.1 advanced diagnostic boundary**
+        **V3.2 advanced diagnostic boundary**
 
         E/N uses an ideal-gas bulk number density. Ion drift uses a user-supplied effective mobility.
         Quench survival uses an optional first-order lumped timescale. Reactor volume is inferred from
-        ideal-gas flow × residence time. The V3.1 feasible-region solver then scans coupled values of
+        ideal-gas flow × residence time. The V3.2 feasible-region solver then scans coupled values of
         plasma electricity, total H₂ recovery, H₂-engine efficiency and heat recovery. It rejects points
         that fail the standard-state ΔH energy guard or the simple ΔG exergy guard before comparing them
         with the conventional gasoline efficiency and operating-cost benchmarks. Grid fractions are
-        deterministic search results, not probabilities. These remain screening equations only; V3.1
+        deterministic search results, not probabilities. These remain screening equations only; V3.2
         still does not solve non-equilibrium plasma kinetics, electron-energy distributions, sheath physics,
         detailed CFD, electrode erosion, radiative heat transfer, membrane selectivity, H₂/O₂ flammability
-        management, startup energy or transient vehicle dynamics.
+        management, startup energy or transient vehicle dynamics. The V3.2 rail extension adds a first-order
+        regional-train mission model but does not replace OEM route simulation or rail homologation analysis.
         """
     )
 
-st.caption("HPRS Automotive V3.1 · Pareto + prototype-target screening · Simulation → laboratory validation → proof of concept")
+st.caption("HPRS Automotive + Rail V3.2 · Pareto + prototype target + regional-train application · Simulation → laboratory validation → proof of concept")
